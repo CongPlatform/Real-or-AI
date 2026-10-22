@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Dashboard from './Dashboard';
 import Conteudos from '../components/Conteudos';
+import LimpezaPesquisa from '../components/LimpezaPesquisa';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -60,6 +61,7 @@ function Painel({ sair }) {
         <nav>
           <button className={aba === 'stats' ? 'on' : ''} onClick={() => setAba('stats')}>Estatísticas</button>
           <button className={aba === 'cont' ? 'on' : ''} onClick={() => setAba('cont')}>Conteúdos</button>
+          <button className={aba === 'limpeza' ? 'on' : ''} onClick={() => setAba('limpeza')}>Limpar dados</button>
           <button onClick={sair}>Sair</button>
         </nav>
       </header>
@@ -67,7 +69,7 @@ function Painel({ sair }) {
       {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
         ? avancado ? <Dashboard dados={d} atual={atual} avancado={avancado} atualizar={carregar} />
           : <div className="painel"><h2>Atualização estatística pendente</h2><p>Execute primeiro o arquivo <code>supabase/PATCH_ESTATISTICAS_V4.sql</code> no SQL Editor.</p></div>
-        : <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} />}
+        : aba === 'cont' ? <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} /> : <LimpezaPesquisa atualizar={carregar} />}
     </div>
   );
 }

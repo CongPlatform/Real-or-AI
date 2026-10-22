@@ -17,11 +17,16 @@ export function resumoParticipantes(valores) {
   const media = mediaValida(a);
   const desvio = n >= 2 ? Math.sqrt(a.reduce((s,x)=>s+(x-media)**2,0)/(n-1)) : null;
   const se = n >= 2 ? desvio / Math.sqrt(n) : null;
-  // Aproximação para quantil t(0,975; gl=n-1); adequada como IC descritivo.
-  const df = n-1;
-  const tc = df > 0 ? 1.959964 + (1.959964**3+1.959964)/(4*df) +
-    (5*1.959964**5+16*1.959964**3+3*1.959964)/(96*df**2) +
-    (3*1.959964**7+19*1.959964**5+17*1.959964**3-15*1.959964)/(384*df**3) : 0;
+  // Valores críticos t de Student (bicaudais, 95%). A expansão assintótica anterior
+  // subestimava bastante o intervalo com n=2 (gl=1); tabelar gl 1–30 evita isso.
+  const tCriticos = [null,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,
+    2.228,2.201,2.179,2.160,2.145,2.131,2.120,2.110,2.101,2.093,2.086,
+    2.080,2.074,2.069,2.064,2.060,2.056,2.052,2.048,2.045,2.042];
+  const df=n-1;
+  const z=1.95996398454005;
+  const tc = df <= 0 ? 0 : (df <= 30 ? tCriticos[df] :
+    z + (z**3+z)/(4*df) + (5*z**5+16*z**3+3*z)/(96*df**2) +
+    (3*z**7+19*z**5+17*z**3-15*z)/(384*df**3));
   return { n, media, mediana: mediana(a), min: n ? Math.min(...a) : null,
     max: n ? Math.max(...a) : null, desvio, se,
     ic: se === null ? null : [Math.max(0, media-tc*se), Math.min(100, media+tc*se)] };
