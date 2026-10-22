@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { analisarMateriais, MODOS_RANKING, ordenarMateriais } from '../lib/analiseMateriais';
+import { supabase } from '../lib/supabase';
 
 const pct = n => n == null ? '—' : `${n.toFixed(1).replace('.', ',')}%`;
 const TIPO = { imagem:'Imagem', texto:'Texto', audio:'Áudio', video:'Vídeo' };
@@ -20,13 +21,39 @@ function Votos({x}){
     <div className="v6-votos-legenda"><span><i className="ia"/>IA <b>{x.ia}</b> ({pct(x.pctIA)})</span><span><i className="humano"/>Humano <b>{x.humano}</b> ({pct(x.pctHumano)})</span></div>
   </div>;
 }
-function Linha({item,modo,pos}){
+function Previa({ material, item, carregando, falha }) {
+  if (carregando) return <div className="v7-preview-status">Carregando prévia…</div>;
+  if (falha) return <div className="v7-preview-status">Prévia indisponível. Verifique a atualização SQL.</div>;
+  if (!material) return <div className="v7-preview-status">Sem prévia cadastrada.</div>;
+  if (item.tipo === 'texto') {
+    const texto = material.texto || '';
+    if (!texto) return <div className="v7-preview-status">Texto não encontrado.</div>;
+    const curta = texto.length > 230;
+    return <div className="v7-preview-texto">
+      {curta ? <>
+        <p>{texto.slice(0, 230).trimEnd()}…</p>
+        <details><summary>Ler texto completo</summary><div className="v7-preview-inteiro">{texto}</div></details>
+      </> : <div className="v7-preview-inteiro">{texto}</div>}
+    </div>;
+  }
+  if (!material.url || !/^https:\/\//i.test(material.url))
+    return <div className="v7-preview-status">Arquivo não disponível.</div>;
+  if (item.tipo === 'imagem') return <div className="v7-preview-imagem">
+    <img loading="lazy" decoding="async" src={material.url} alt={`Prévia do material ${item.nome}`} />
+    <details><summary>Ampliar imagem</summary><img loading="lazy" src={material.url} alt={`Imagem ampliada: ${item.nome}`} className="v7-preview-ampliada" /></details>
+  </div>;
+  if (item.tipo === 'audio') return <div className="v7-preview-midia"><span>Ouvir o áudio</span><audio controls preload="none" src={material.url} aria-label={`Reproduzir ${item.nome}`} /></div>;
+  if (item.tipo === 'video') return <div className="v7-preview-midia"><video controls preload="none" playsInline src={material.url} aria-label={`Reproduzir ${item.nome}`} /></div>;
+  return <div className="v7-preview-status">Tipo não reconhecido.</div>;
+}
+function Linha({item,modo,pos,material,carregando,erroPrevia}){
   const erro = modo==='falsoPositivo' || modo==='falsoNegativo' || modo==='taxaErro';
   const principal = modo==='ia' ? `${item.ia} votos IA` : modo==='humano' ? `${item.humano} votos humano` :
     modo==='falsoPositivo' ? `${item.erroHumanoComoIA} erros` : modo==='falsoNegativo' ? `${item.erroIAComoHumano} erros` :
     modo==='taxaErro' ? pct(item.pctErro) : `${item.n} avaliações`;
   return <div className="v6-material-linha">
     {pos!=null&&<strong className="v6-ranking-pos">{pos}º</strong>}
+    <div className="v7-preview-bloco"><Previa item={item} material={material} carregando={carregando} falha={erroPrevia}/></div>
     <div className="v6-material-detalhes"><div className="v6-material-titulo"><strong title={item.nome}>{item.nome}</strong><span className="v6-tag">{TIPO[item.tipo]||item.tipo}</span><span className="v6-tag">Origem: {item.origem_ia?'IA':'Humano'}</span>{item.comparacao_id&&<span className="v6-tag">Par</span>}</div>
       <div className="v6-material-meta"><span>{item.n} avaliações · {item.participantes} participantes</span><span>{item.nIndividual} individuais · {item.nComparacao} em pares</span><span>Erros: {item.erros}/{item.n} ({pct(item.pctErro)})</span></div>
       <Votos x={item}/>
@@ -41,8 +68,22 @@ export default function RankingMateriais({d, comparacoesDetalhes, comparacoesDis
   const [classe,setClasse]=useState('todos');
   const [fonte,setFonte]=useState('todos');
   const [busca,setBusca]=useState('');
-  const [minimo,setMinimo]=useState(5);
+  const [minimo,setMinimo]=useState(1);
   const [verTodos,setVerTodos]=useState(false);
+  // Apenas o administrador pode buscar URLs/textos; a RPC protege o gabarito e o conteúdo.
+  // Carregar apenas quando a aba é montada. Os arquivos de áudio/vídeo não são baixados até reprodução.
+  const [previews,setPreviews]=useState(null);
+  const [erroPrevia,setErroPrevia]=useState('');
+  useEffect(()=>{
+    let montado=true;
+    supabase.rpc('admin_previews_materiais_v7').then(({data,error})=>{
+      if(!montado)return;
+      if(error){setErroPrevia(error.message||'Não foi possível carregar prévias.');setPreviews(new Map());return;}
+      setPreviews(new Map((Array.isArray(data)?data:[]).map(x=>[String(x.id),x])));
+    });
+    return ()=>{montado=false;};
+  },[]);
+
   const dados=useMemo(()=>analisarMateriais(d,comparacoesDetalhes,fonte),[d,comparacoesDetalhes,fonte]);
   const filtrados=useMemo(()=>dados.itens.filter(x=>(tipo==='todos'||x.tipo===tipo)&&
     (classe==='todos'||x.origem_ia===(classe==='ia'))&&
@@ -73,8 +114,9 @@ export default function RankingMateriais({d, comparacoesDetalhes, comparacoesDis
         <label>Avaliações mínimas<select value={minimo} onChange={e=>setMinimo(Number(e.target.value))}><option value={1}>1 (exploratório)</option><option value={3}>3</option><option value={5}>5 (recomendado)</option><option value={10}>10</option><option value={20}>20</option></select></label>
         <label className="v6-busca">Buscar pelo nome<input type="search" placeholder="Buscar imagem, música, texto..." value={busca} onChange={e=>setBusca(e.target.value)}/></label>
       </div>
-      <p className="v6-material-info">{regra.descricao} Exibindo <b>{Math.min(ordenados.length,verTodos?ordenados.length:12)}</b> de <b>{ordenados.length}</b> resultados. A taxa por material usa <b>votos / avaliações daquele material</b>, não o total da pesquisa.</p>
-      {ordenados.length?<div className="v6-material-lista">{(verTodos?ordenados:ordenados.slice(0,12)).map((x,i)=><Linha item={x} modo={modo} pos={i+1} key={x.id}/>)}</div>:<p className="v5-empty">Nenhum material encontrado com estes filtros e quantidade mínima de avaliações. Reduza o mínimo ou altere a seleção.</p>}
+      <p className="v6-material-info">{regra.descricao} {minimo<5?'Com menos de cinco avaliações por peça, este ranking é apenas exploratório. ':''} Exibindo <b>{Math.min(ordenados.length,verTodos?ordenados.length:12)}</b> de <b>{ordenados.length}</b> resultados. A taxa por material usa <b>votos / avaliações daquele material</b>, não o total da pesquisa.</p>
+      {erroPrevia&&<p className="v5-nota" role="alert">As estatísticas continuam disponíveis, mas as prévias dependem do SQL de atualização: {erroPrevia}</p>}
+      {ordenados.length?<div className="v6-material-lista">{(verTodos?ordenados:ordenados.slice(0,12)).map((x,i)=><Linha item={x} modo={modo} pos={i+1} key={x.id} material={previews?.get(String(x.id))} carregando={previews===null} erroPrevia={!!erroPrevia}/>)}</div>:<p className="v5-empty">Nenhum material com votos válidos neste filtro. Confira se existem participantes que concluíram 30 decisões e se os testes estão marcados como piloto no filtro do topo. Também é possível reduzir o mínimo de avaliações.</p>}
       <div className="v6-material-acoes">{ordenados.length>12&&<button type="button" className="v5-btn-sec" onClick={()=>setVerTodos(x=>!x)}>{verTodos?'Mostrar apenas 12':'Mostrar todos os materiais'}</button>}
         <button className="cta" type="button" onClick={()=>baixarCsv(filtrados)}>Exportar todos os materiais filtrados (CSV)</button></div>
     </section>

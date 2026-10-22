@@ -428,3 +428,23 @@ details p{line-height:1.65;font-size:.92rem}
 @media(max-width:1100px){.v6-material-atalhos{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.v6-material-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.v6-material-linha{flex-wrap:wrap}.v6-ranking-valor{min-width:0;margin-left:auto;max-width:none}}
 @media(max-width:430px){.v6-material-atalhos,.v6-material-filtros{grid-template-columns:1fr}.v6-material-linha{gap:8px}.v6-ranking-pos{min-width:25px}.v6-material-acoes .cta{width:100%}}
+
+/* Ranking de materiais: visualização real do conteúdo, não apenas nomes/CSV. */
+.v7-preview-bloco{width:min(210px,100%);flex:0 0 210px;min-width:0;align-self:flex-start}
+.v7-preview-bloco img{max-width:100%}
+.v7-preview-imagem>img{display:block;width:100%;height:126px;object-fit:contain;background:#eeecf5;border:1.5px solid #d6d0e5;border-radius:10px}
+.v7-preview-imagem details{margin-top:6px}
+.v7-preview-imagem details[open]{position:relative;z-index:2}
+.v7-preview-ampliada{margin-top:9px;width:min(480px,80vw);max-height:460px;object-fit:contain;border:1px solid #cdc4e4;border-radius:10px;background:#fff}
+.v7-preview-imagem summary,.v7-preview-texto summary{cursor:pointer;font-size:.76rem;color:var(--ia);font-weight:800}
+.v7-preview-midia{display:flex;flex-direction:column;gap:6px;min-width:0}
+.v7-preview-midia>span{font-size:.78rem;font-weight:850;color:var(--ia)}
+.v7-preview-midia video{display:block;width:100%;max-height:170px;border-radius:10px;background:#1b1930}
+.v7-preview-midia audio{display:block;width:100%;height:44px;max-width:100%}
+.v7-preview-texto{font-size:.8rem;line-height:1.55;background:#fff;border:1.5px solid #d6d0e5;border-radius:10px;padding:10px;overflow-wrap:anywhere}
+.v7-preview-texto p{margin:0 0 7px;white-space:pre-wrap}
+.v7-preview-inteiro{white-space:pre-wrap;overflow-wrap:anywhere}
+.v7-preview-texto details .v7-preview-inteiro{margin-top:8px;border-top:1px solid #eee8ff;padding-top:8px}
+.v7-preview-status{border:1.5px dashed #ccc5dc;border-radius:10px;padding:12px 8px;color:#615c70;font-size:.76rem;line-height:1.5}
+@media(max-width:760px){.v7-preview-bloco{flex:0 0 145px;width:145px}.v7-preview-imagem>img{height:100px}}
+@media(max-width:540px){.v7-preview-bloco{flex:1 0 100%;width:100%}.v7-preview-imagem>img{height:170px}.v7-preview-midia video{max-height:230px}}
