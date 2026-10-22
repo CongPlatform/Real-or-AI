@@ -27,18 +27,23 @@ function Login() {
 function Painel({ sair }) {
   const [d, setD] = useState(null);
   const [avancado, setAvancado] = useState(null);
+  const [comparacoesItens,setComparacoesItens] = useState([]);
+  const [comparacoesDisponiveis,setComparacoesDisponiveis] = useState(false);
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('stats');
   const [atual, setAtual] = useState(null);
   const tm = useRef();
 
   const carregar = useCallback(async () => {
-    const [principal, adicional] = await Promise.all([
+    const [principal, adicional, itensComparados] = await Promise.all([
       supabase.rpc('admin_dados'), supabase.rpc('admin_analise_v4'),
+      supabase.rpc('admin_respostas_itens_comp_v6'),
     ]);
     if (principal.error) return setErro(principal.error.message);
     setD(principal.data);
     setAvancado(adicional.error ? null : adicional.data);
+    setComparacoesItens(!itensComparados.error && Array.isArray(itensComparados.data) ? itensComparados.data : []);
+    setComparacoesDisponiveis(!itensComparados.error);
     setErro(adicional.error ? 'Instale supabase/PATCH_ESTATISTICAS_V4.sql e atualize. ' + adicional.error.message : '');
     setAtual(new Date());
   }, []);
@@ -67,7 +72,7 @@ function Painel({ sair }) {
       </header>
       {erro && <p className="erro">{erro}</p>}
       {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
-        ? avancado ? <Dashboard dados={d} atual={atual} avancado={avancado} atualizar={carregar} />
+        ? avancado ? <Dashboard dados={d} atual={atual} avancado={avancado} atualizar={carregar} comparacoesItens={comparacoesItens} comparacoesDisponiveis={comparacoesDisponiveis} />
           : <div className="painel"><h2>Atualização estatística pendente</h2><p>Execute primeiro o arquivo <code>supabase/PATCH_ESTATISTICAS_V4.sql</code> no SQL Editor.</p></div>
         : aba === 'cont' ? <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} /> : <LimpezaPesquisa atualizar={carregar} />}
     </div>

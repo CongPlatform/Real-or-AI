@@ -8,6 +8,7 @@ import {
 import { analisarAvancado, ENQUADRAMENTOS, TIPOS_ANALISE, resumoParticipantes } from '../lib/analiseAvancada';
 import { criarEvolucao, contarDistribuicao, PREVISAO_INICIAL, FORCA_INICIAL } from '../lib/previsaoPesquisa';
 import { supabase } from '../lib/supabase';
+import RankingMateriais from '../components/RankingMateriais';
 
 const META=100;
 const p100=v=>v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v).toFixed(1).replace('.',',')}%`;
@@ -20,7 +21,7 @@ const NAMES={ IA:'IA', real:'Humano' };
 const TABS=[
   ['visao','Visão geral'],['diagnostico','IA × humano'],['formatos','Formatos e perguntas'],
   ['comportamento','Escuta e confiança'],['projecao','Evolução e projeção'],
-  ['calculos','Como calculamos'],['auditoria','Tabelas e auditoria']
+  ['materiais','Análise por conteúdo'],['calculos','Como calculamos'],['auditoria','Tabelas e auditoria']
 ];
 function Painel({titulo,sub,children,wide=false}){
   return <section className={`painel v5-painel ${wide?'v5-wide':''}`}><div className="v5-painel-head"><h2>{titulo}</h2>{sub&&<p className="mut">{sub}</p>}</div>{children}</section>;
@@ -123,7 +124,7 @@ function Tabela({cabecalhos,linhas}){return <div className="rolagem v5-tabela-sc
 function ResumoFonte({d}){
   return <div className="v5-resumo-fonte"><span>Incluídas: <b>{d.coleta.validas}</b> sessões completas válidas</span><span>Excluídas: <b>{d.coleta.pilotos}</b> pilotos completos</span><span>Fora do protocolo: <b>{d.coleta.foraProtocolo}</b></span><span>Não finalizadas: <b>{d.coleta.incompletas}</b></span></div>;
 }
-export default function Dashboard({dados,atual,avancado,atualizar}){
+export default function Dashboard({dados,atual,avancado,atualizar,comparacoesItens=[],comparacoesDisponiveis=false}){
   const [incluirPilotos,setIncluirPilotos]=useState(false);
   const [aba,setAba]=useState('visao');
   const [mudando,setMudando]=useState('');
@@ -228,6 +229,7 @@ export default function Dashboard({dados,atual,avancado,atualizar}){
       <Painel titulo="Evolução animada da pesquisa" sub="Você pode voltar ao começo, avançar manualmente ou reproduzir todos os participantes em sequência."><Evolucao pessoas={d.pessoas}/></Painel>
       <Painel titulo="Interpretação correta" sub="Como o processo é atualizado a cada novo participante"><div className="v5-dados-diretos"><Numero rotulo="Hipótese inicial configurada" valor={`${PREVISAO_INICIAL}%`} legenda="Referência para palpite aleatório individual"/><Numero rotulo="Resultados observados" valor={String(d.pessoas.length)} legenda="Amostra realmente coletada"/><Numero rotulo="Média observada atual" valor={p100(d.notas.media)} legenda={`IC 95% descritivo: ${ci(d.notas.ic)}`}/></div><Nota>Alterar a hipótese inicial modifica apenas a linha de projeção. Nunca modifica os dados observados. A análise final deve priorizar os dados coletados, o intervalo de confiança e possíveis diferenças por modalidade, não a precisão aparente da curva.</Nota></Painel>
     </>}
+    {aba==='materiais'&&<RankingMateriais d={d} comparacoesDetalhes={comparacoesItens} comparacoesDisponiveis={comparacoesDisponiveis}/>}
     {aba==='calculos'&&<>
       <div className="v5-intro"><h2>Todas as contas, sem esconder as fórmulas</h2><p>Os resultados abaixo usam o recorte atual. Cada fórmula indica qual é a unidade de análise e mostra a operação com os números reais disponíveis.</p></div>
       <Painel titulo="Indicadores de reconhecimento"><div className="v5-explicacoes">

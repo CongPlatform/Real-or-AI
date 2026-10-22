@@ -393,3 +393,38 @@ details p{line-height:1.65;font-size:.92rem}
 @media(max-width:480px){.v5-hero-numeros{grid-template-columns:1fr}.v5-numero strong{font-size:2rem}.v5-cabecalho{padding:16px}.v5-matriz-cel strong{font-size:1.5rem}.v5-matriz-rotulo{font-size:.78rem}}
 @media(prefers-reduced-motion:reduce){.dash-v5 *{animation:none!important;transition:none!important}}
 .v5-seletor{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.v5-seletor label{font-weight:800;font-size:.9rem}.v5-seletor select{max-width:290px;width:auto;flex:1}
+
+/* Dashboard v6 — análise por material, rankings de marcações e confusões. */
+.v6-materiais{display:flex;flex-direction:column;gap:17px;min-width:0}
+.v6-material-atalhos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.v6-material-atalhos button{background:#fff;border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);border-radius:12px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:7px;min-width:0;cursor:pointer}
+.v6-material-atalhos button.selecionado{background:#eee8ff;border-color:var(--ia);box-shadow:3px 3px 0 var(--ia)}
+.v6-material-atalhos button span{font-size:.79rem;font-weight:900;color:var(--ia);line-height:1.3}
+.v6-material-atalhos button strong{font-size:1rem;overflow-wrap:anywhere;line-height:1.3}
+.v6-material-atalhos button small{font-size:.72rem;color:var(--mut);line-height:1.4}
+.v6-material-filtros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.v6-material-filtros label{display:flex;flex-direction:column;gap:6px;font-size:.78rem;font-weight:850;min-width:0}
+.v6-material-filtros input,.v6-material-filtros select{min-width:0;width:100%;max-width:100%;border:2px solid #cdc4e6;border-radius:10px;padding:10px;background:#fff;color:var(--ink);font-size:.85rem}
+.v6-material-info{font-size:.84rem;color:var(--mut);line-height:1.6;margin:0}
+.v6-material-lista{display:flex;flex-direction:column;gap:10px}
+.v6-material-linha{display:flex;gap:12px;align-items:center;border:1.5px solid #ded8ec;background:#fcfbff;border-radius:13px;padding:14px;min-width:0}
+.v6-ranking-pos{align-self:flex-start;min-width:30px;color:var(--ia);font-weight:900;font-size:1.2rem}
+.v6-material-detalhes{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.v6-material-titulo{display:flex;align-items:center;flex-wrap:wrap;gap:7px;min-width:0}
+.v6-material-titulo>strong{font-size:1rem;overflow-wrap:anywhere}
+.v6-tag{padding:4px 7px;border:1px solid #d8d0ec;background:#f3f0ff;color:#494060;border-radius:6px;font-weight:750;font-size:.68rem}
+.v6-material-meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.73rem;color:#59546e}
+.v6-votos{display:flex;flex-direction:column;gap:5px;min-width:0}
+.v6-votos-trilha{display:flex;height:15px;width:100%;border-radius:6px;overflow:hidden;background:#e8e4ef}
+.v6-votos-trilha span.ia{background:var(--ia)}.v6-votos-trilha span.humano{background:var(--real)}
+.v6-votos-legenda{display:flex;flex-wrap:wrap;gap:7px 19px;color:#414052;font-size:.75rem}
+.v6-votos-legenda span{display:flex;align-items:center;gap:5px}
+.v6-votos-legenda i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.v6-votos-legenda i.ia{background:var(--ia)}.v6-votos-legenda i.humano{background:var(--real);border:1px solid #a0b24e}
+.v6-ranking-valor{align-self:center;min-width:110px;max-width:145px;text-align:right;font-size:.94rem;color:var(--ia);line-height:1.35}
+.v6-ranking-valor.alerta{color:#ba3651}
+.v6-material-acoes{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end}
+.v6-material-acoes .cta{font-size:.82rem;padding:10px 13px;width:auto;min-width:0}
+@media(max-width:1100px){.v6-material-atalhos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.v6-material-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.v6-material-linha{flex-wrap:wrap}.v6-ranking-valor{min-width:0;margin-left:auto;max-width:none}}
+@media(max-width:430px){.v6-material-atalhos,.v6-material-filtros{grid-template-columns:1fr}.v6-material-linha{gap:8px}.v6-ranking-pos{min-width:25px}.v6-material-acoes .cta{width:100%}}
