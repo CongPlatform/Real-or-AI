@@ -140,3 +140,15 @@ details p{line-height:1.65;font-size:.92rem}
 .lote-status.sucesso{color:#356600}
 .lote-status.erro{color:#c0262d}
 .lote-item .erro{font-size:.82rem;overflow-wrap:anywhere}
+
+/* Importação de textos em lote */
+.textos-colagem{width:100%;min-height:205px;line-height:1.5;resize:vertical}
+.textos-lista{max-height:550px}
+.texto-previa{margin:0;color:var(--ink);font-size:.9rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.texto-detalhes{margin:0;border-top:1px solid rgba(20,18,43,.14);padding-top:8px}
+.texto-detalhes summary{font-size:.84rem}
+.texto-detalhes textarea{margin-top:8px;line-height:1.5}
+.lote-item-topo{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lote-item-topo .lote-status{margin:0}
+.lote-erros{border:2px solid var(--warn);background:#fff4f4;border-radius:10px;padding:12px;font-size:.9rem}
+.lote-erros ul{margin:8px 0 0;padding-left:20px}

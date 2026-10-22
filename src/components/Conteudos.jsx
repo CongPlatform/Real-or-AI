@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TIPOS } from '../lib/opcoes';
+import { analisarTextosEmLote } from '../lib/textosLote';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -164,6 +165,180 @@ function ImportacaoEmLote({ recarregar }) {
   );
 }
 
+function ImportacaoTextosEmLote({ recarregar }) {
+  const [entrada, setEntrada] = useState('');
+  const [textos, setTextos] = useState([]);
+  const [errosAnalise, setErrosAnalise] = useState([]);
+  const [analisado, setAnalisado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState('');
+
+  const atualizar = (id, alteracoes) => setTextos((atual) =>
+    atual.map((item) => item.id === id ? { ...item, ...alteracoes } : item));
+
+  const concluidos = textos.filter((item) => item.status === 'sucesso').length;
+  const pendentes = textos.filter((item) => item.status !== 'sucesso').length;
+  const temSalvos = concluidos > 0;
+  const todasIA = textos.length > 0 && textos.every((item) => item.ia === true);
+  const todasReais = textos.length > 0 && textos.every((item) => item.ia === false);
+
+  function alterarEntrada(valor) {
+    setEntrada(valor);
+    setTextos([]);
+    setErrosAnalise([]);
+    setAnalisado(false);
+    setAviso('');
+  }
+
+  function analisar() {
+    const { itens, erros } = analisarTextosEmLote(entrada);
+    setTextos(itens.map((item, i) => ({
+      ...item, id: `texto-${item.numero}-${i}`, ia: null, status: 'pendente', erro: '',
+    })));
+    setErrosAnalise(erros);
+    setAnalisado(true);
+    setAviso('');
+  }
+
+  function definirTodos(ia) {
+    setTextos((atual) => atual.map((item) =>
+      item.status === 'sucesso' ? item : { ...item, ia }));
+  }
+
+  function novaImportacao() {
+    setEntrada('');
+    setTextos([]);
+    setErrosAnalise([]);
+    setAnalisado(false);
+    setAviso('');
+  }
+
+  async function importar() {
+    if (enviando || errosAnalise.length) return;
+    const aEnviar = textos.filter((item) => item.status !== 'sucesso');
+    if (!aEnviar.length || aEnviar.some((item) => !item.texto.trim() || typeof item.ia !== 'boolean')) return;
+    setEnviando(true);
+    setAviso('');
+    let salvos = 0;
+    let falhas = 0;
+    try {
+      // Sequencial: mostra o resultado de cada texto e permite reenviar somente falhas.
+      for (const item of aEnviar) {
+        atualizar(item.id, { status: 'enviando', erro: '' });
+        try {
+          await criarItem('texto', { texto: item.texto, ia: item.ia },
+            item.titulo.trim() || `Texto #${item.numero}`, {});
+          atualizar(item.id, { status: 'sucesso', erro: '' });
+          salvos += 1;
+        } catch (erro) {
+          atualizar(item.id, { status: 'erro', erro: erro.message || 'Erro desconhecido.' });
+          falhas += 1;
+        }
+      }
+      setAviso(`${salvos} texto(s) cadastrado(s) nesta tentativa.` +
+        (falhas ? ` ${falhas} falha(s). Corrija e tente novamente apenas os que falharam.` : ''));
+      if (salvos) recarregar();
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const textosVazios = textos.some((item) => item.status !== 'sucesso' && !item.texto.trim());
+  const semClassificacao = textos.some((item) => item.status !== 'sucesso' && typeof item.ia !== 'boolean');
+  const podeEnviar = analisado && textos.length > 0 && !errosAnalise.length && !textosVazios && !semClassificacao && pendentes > 0;
+
+  return (
+    <section className="painel larga">
+      <h2>Importar textos em lote</h2>
+      <p className="mut">Cole vários textos separados por marcadores em linhas próprias, como <code>--- TEXTO #1 ---</code> e <code>--- TEXTO #2 ---</code>. Cada bloco será salvo como um conteúdo de texto individual.</p>
+      <div className="form-cont" style={{ marginTop: 12 }}>
+        <label className="lote-nome" htmlFor="textos-em-lote">
+          <span>Textos para importar (por exemplo, 60 de uma vez)</span>
+        </label>
+        <textarea id="textos-em-lote" className="textos-colagem" rows="9"
+          placeholder={'--- TEXTO #1 ---\nPrimeiro texto aqui.\n\n--- TEXTO #2 ---\nSegundo texto aqui.'}
+          value={entrada} disabled={enviando || temSalvos}
+          onChange={(e) => alterarEntrada(e.target.value)} />
+        {!analisado && (
+          <button className="cta" type="button" disabled={!entrada.trim() || enviando}
+            onClick={analisar}>Separar e conferir textos</button>
+        )}
+        {analisado && (
+          <>
+            <p className="mut" role="status">
+              {textos.length} texto(s) identificado(s). {concluidos} cadastrado(s).
+              Confira os conteúdos e defina o gabarito (IA ou Real) antes de salvar.
+            </p>
+            {errosAnalise.length > 0 && (
+              <div className="lote-erros" role="alert">
+                <b>Corrija a colagem e analise novamente:</b>
+                <ul>{errosAnalise.map((erro, i) => <li key={i}>{erro}</li>)}</ul>
+              </div>
+            )}
+            {textos.length > 0 && (
+              <>
+                <div className="chips">
+                  <button type="button" className={'chip' + (todasIA ? ' on' : '')}
+                    disabled={enviando || !pendentes} onClick={() => definirTodos(true)}>Todos são IA</button>
+                  <button type="button" className={'chip' + (todasReais ? ' on' : '')}
+                    disabled={enviando || !pendentes} onClick={() => definirTodos(false)}>Todos são reais</button>
+                </div>
+                <p className="mut">É possível alternar a classificação individualmente e editar os textos antes do envio. Os itens já cadastrados não serão reenviados.</p>
+                {semClassificacao && <p className="aviso" role="status">Defina IA ou Real para cada texto, ou use um dos botões acima para classificar todos.</p>}
+                <div className="lote-lista textos-lista">
+                  {textos.map((item) => (
+                    <div className="lote-item" key={item.id}>
+                      <div className="lote-item-topo">
+                        <b>Texto #{item.numero}</b>
+                        <span className={'lote-status ' + item.status}>
+                          {item.status === 'pendente' ? 'Aguardando' :
+                            item.status === 'enviando' ? 'Enviando…' :
+                            item.status === 'sucesso' ? 'Cadastrado' : 'Falhou'}
+                        </span>
+                      </div>
+                      <label className="lote-nome">
+                        <span>Nome interno</span>
+                        <input value={item.titulo} disabled={enviando || item.status === 'sucesso'}
+                          onChange={(e) => atualizar(item.id, { titulo: e.target.value })} />
+                      </label>
+                      <p className="texto-previa">{item.texto || '(texto vazio)'}</p>
+                      <details className="texto-detalhes">
+                        <summary>Conferir ou editar texto completo</summary>
+                        <textarea rows="5" value={item.texto}
+                          aria-label={`Conteúdo do texto ${item.numero}`}
+                          disabled={enviando || item.status === 'sucesso'}
+                          onChange={(e) => atualizar(item.id, { texto: e.target.value })} />
+                      </details>
+                      <div className="chips">
+                        <button type="button" className={'chip' + (item.ia === true ? ' on' : '')}
+                          disabled={enviando || item.status === 'sucesso'}
+                          onClick={() => atualizar(item.id, { ia: true })}>IA</button>
+                        <button type="button" className={'chip' + (item.ia === false ? ' on' : '')}
+                          disabled={enviando || item.status === 'sucesso'}
+                          onClick={() => atualizar(item.id, { ia: false })}>Real</button>
+                      </div>
+                      {!item.texto.trim() && <p className="erro">O texto não pode ficar vazio.</p>}
+                      {item.erro && <p className="erro" role="alert">{item.erro}</p>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <button type="button" className="cta" disabled={enviando || !podeEnviar}
+              onClick={importar}>
+              {enviando ? `Salvando… ${concluidos}/${textos.length}` :
+                pendentes ? `Cadastrar ${pendentes} texto(s)` : 'Todos cadastrados'}
+            </button>
+          </>
+        )}
+        <button type="button" className="link" disabled={enviando}
+          onClick={novaImportacao}>{temSalvos ? 'Começar outra importação' : 'Limpar e recomeçar'}</button>
+        {aviso && <p className="mut" role="status">{aviso}</p>}
+      </div>
+    </section>
+  );
+}
+
 function Editor({ it, onChange, tipo, rotulo }) {
   return (
     <div className="editor">
@@ -247,6 +422,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       </section>
 
       <ImportacaoEmLote recarregar={recarregar} />
+
+      <ImportacaoTextosEmLote recarregar={recarregar} />
 
       <section className="painel">
         <h2>Cobertura por tipo</h2>
