@@ -4,6 +4,7 @@ import { TIPOS } from '../lib/opcoes';
 import { analisarTextosEmLote } from '../lib/textosLote';
 import { criarItem } from '../lib/conteudosStorage';
 import ImportacaoMidiasEmLote from './ImportacaoMidiasEmLote';
+import OtimizarImagensExistentes from './OtimizarImagensExistentes';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -393,6 +394,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       </section>
 
       <ImportacaoEmLote recarregar={recarregar} />
+
+      <OtimizarImagensExistentes recarregar={recarregar} />
 
       <ImportacaoTextosEmLote recarregar={recarregar} />
 

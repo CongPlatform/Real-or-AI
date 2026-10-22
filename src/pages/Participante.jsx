@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes';
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
+import { prepararImagensDaSessao, anteciparProximasImagens } from '../lib/precarregarMidias';
 
 const LS = 'realia_v3';
 const ler = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
@@ -223,6 +224,9 @@ export default function Participante() {
     salvar({ nIndividuais: individuais.length });
     setFila(pendentes);
     setComps(paresPendentes);
+    // O roteiro só é conhecido depois do sorteio no servidor.
+    // Começa a baixar as imagens dessa sessão antes de abrir a primeira pergunta.
+    prepararImagensDaSessao(pendentes, paresPendentes);
     setI(0); setJ(0);
     setEtapa(pendentes.length ? (comIntro ? 'p1_intro' : 'p1') :
       paresPendentes.length ? (comIntro ? 'p2_intro' : 'p2') : 'fim');
@@ -245,14 +249,10 @@ export default function Participante() {
     })();
   }, []);
 
-  // Carrega apenas a próxima imagem depois do conteúdo atual estar pronto.
-  // Assim evitamos disputar banda com a imagem principal em conexões móveis lentas.
-  const prefazer = () => {
-    const proximo = fila[i + 1];
-    if (proximo?.tipo === 'imagem' && proximo.url) {
-      const img = new Image(); img.src = proximo.url;
-    }
-  };
+  // Ao avançar, dá prioridade às próximas imagens ainda não visitadas.
+  useEffect(() => {
+    if (etapa === 'p1') anteciparProximasImagens(fila, comps, i + 1);
+  }, [etapa, fila, comps, i]);
 
   async function iniciar(f) {
     setBusy(true); setErro('');
@@ -314,13 +314,13 @@ export default function Participante() {
       onConfirm={(m, ms) => decidirComp(c, m, ms)} busy={busy} erro={erro} />;
   }
   const c = fila[i];
-  return <div className="tela quiz">
+  return <div className={"tela quiz" + (c.tipo === "audio" ? " quiz-audio" : "")}>
     <header className="topo">
       <div className="barra"><i style={{ width: `${((jaRespondidas + i) / 30) * 100}%` }} /></div>
       <span>{jaRespondidas + i + 1}/30 decisões</span>
     </header>
     <SwipeCard key={c.id} item={c} primeiro={i === 0}
       pergunta={enunciado(true, c.enquadramento, c.tipo)} busy={busy} erro={erro}
-      onDecide={(ia, ms, met) => decidir(c, ia, ms, met)} onConteudoCarregado={prefazer} />
+      onDecide={(ia, ms, met) => decidir(c, ia, ms, met)} onConteudoCarregado={() => anteciparProximasImagens(fila, comps, i + 1)} />
   </div>;
 }
