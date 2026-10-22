@@ -26,6 +26,9 @@ export default function LimpezaPesquisa({atualizar}) {
       if(error)throw error;
       if(!data?.ok) {setErro(data?.mensagem||'Não foi possível executar a limpeza.');return;}
       setResultado(data);
+      // Esta limpeza invalidou também o teste salvo neste navegador.
+      // Apenas o identificador local é descartado; nenhuma outra preferência é tocada.
+      try { localStorage.removeItem('realia_v3'); } catch { /* armazenamento indisponível */ }
       setSenha('');setFrase('');setBackup(false);
       await atualizar?.();
       await carregar();

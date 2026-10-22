@@ -9,6 +9,16 @@ import { prepararProximoAudio } from '../lib/precarregarAudios';
 const LS = 'realia_v3';
 const ler = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
 const salvar = (d) => { try { localStorage.setItem(LS, JSON.stringify({ ...ler(), ...d })); } catch { /* ignora */ } };
+// Quando o Admin limpa os participantes, o ID salvo neste navegador deixa de existir.
+// Limpa APENAS a identificação local; não interfere nos arquivos ou em outros participantes.
+const limparSessaoLocal = () => { try { localStorage.removeItem(LS); } catch { /* ignora */ } };
+const sessaoLocalInvalida = (erro) => {
+  const mensagem = String(erro?.message || erro || '').toLowerCase();
+  return mensagem.includes('participante não encontrado ou teste já finalizado')
+    || mensagem.includes('participante nao encontrado ou teste ja finalizado')
+    || mensagem.includes('participante inválido')
+    || mensagem.includes('participante invalido');
+};
 
 const PERGUNTAS = [
   { k: 'faixa', t: 'Qual a sua idade?', op: FAIXAS },
@@ -42,16 +52,25 @@ function Wizard({ onFim, busy, erro }) {
 
   if (i < 0) {
     return (
-      <div className="tela centro largo">
-        <div className="cartao hero">
-          <div className="pilha" aria-hidden="true">
-            <div className="mini fundo" />
-            <div className="mini frente"><span className="selo-mini">Sem IA</span></div>
+      <div className="tela centro largo inicio-tela">
+        <div className="cartao hero inicio-cartao">
+          <div className="inicio-cabecalho">
+            <span className="inicio-simbolo" aria-hidden="true"><span>R</span><span>IA?</span></span>
+            <span className="inicio-etiqueta">PESQUISA ESCOLAR · MATEMÁTICA AVANÇADA</span>
           </div>
-          <h1>Real<br />ou IA?</h1>
-          <p>Pesquisa de matemática avançada. Primeiro 6 perguntas rápidas, depois você decide o que foi feito por IA. São 30 decisões; o teste é anônimo e inclui áudios com escuta por trechos.</p>
-          <p className="definicao-origem"><strong>O que conta como IA?</strong> Classificamos pela origem do conteúdo final. Se as imagens de um vídeo foram geradas por IA, ele será considerado IA mesmo com roteiro humano. Para áudio, imagem e texto vale a mesma regra: o que importa é o material final apresentado, e não apenas a ideia, o roteiro ou o comando usado para produzi-lo.</p>
-          <button className="cta" style={{ alignSelf: 'stretch' }} onClick={() => setI(0)}>Começar</button>
+          <h1 className="inicio-titulo">Real <span>ou IA?</span></h1>
+          <p className="inicio-chamada">Você consegue distinguir conteúdos criados por pessoas daqueles produzidos por inteligência artificial?</p>
+          <div className="inicio-fatos" aria-label="Como funciona">
+            <span><strong>6</strong> perguntas iniciais</span>
+            <span><strong>30</strong> decisões</span>
+            <span><strong>4</strong> formatos</span>
+          </div>
+          <div className="inicio-definicao">
+            <div className="inicio-definicao-titulo"><span aria-hidden="true">?</span><strong>O que consideramos IA?</strong></div>
+            <p>Vale a origem do <strong>conteúdo final</strong>. Um vídeo com roteiro humano e imagens geradas por IA, por exemplo, é classificado como IA. O mesmo critério vale para imagens, textos e áudios.</p>
+          </div>
+          <p className="inicio-rodape">O teste é anônimo. Nos áudios, você pode ouvir mais trechos antes de responder.</p>
+          <button type="button" className="cta inicio-botao" onClick={() => setI(0)}>Começar pesquisa <span aria-hidden="true">→</span></button>
         </div>
       </div>
     );
@@ -257,20 +276,37 @@ export default function Participante() {
   }
 
   useEffect(() => {
+    let ativo = true;
     (async () => {
       const s = ler();
       try {
-        if (s.pid) setPid(s.pid);
-        if (s.concluido) return setEtapa('fim');
+        if (s.concluido) {
+          if (ativo) { setPid(s.pid || null); setEtapa('fim'); }
+          return;
+        }
         if (s.pid) {
           const { data, error } = await supabase.rpc('obter_teste_v3', { p_participante: s.pid });
           if (error) throw error;
-          instalarRoteiro(await adicionarGanhosDeAudio(data));
+          const roteiro = await adicionarGanhosDeAudio(data);
+          if (!ativo) return;
+          setPid(s.pid);
+          instalarRoteiro(roteiro);
           return;
         }
-      } catch (e) { setErro(e.message || 'Erro ao recuperar seu teste.'); }
-      setEtapa('intro');
+      } catch (e) {
+        if (!ativo) return;
+        if (sessaoLocalInvalida(e)) {
+          // O banco foi limpo: não pedir ao usuário que mexa no DevTools.
+          limparSessaoLocal();
+          setPid(null);
+          setErro('');
+        } else {
+          setErro('Não foi possível retomar o teste. Confira sua conexão e tente novamente.');
+        }
+      }
+      if (ativo) setEtapa('intro');
     })();
+    return () => { ativo = false; };
   }, []);
 
   // Ao avançar, dá prioridade às próximas imagens ainda não visitadas.
@@ -284,21 +320,29 @@ export default function Participante() {
   async function iniciar(f) {
     setBusy(true); setErro('');
     try {
-      let participante = ler().pid;
-      if (!participante) {
+      async function cadastrar() {
         const { data, error } = await supabase.rpc('registrar_participante', {
           p_faixa: f.faixa, p_genero: f.genero || null, p_escolaridade: f.esc,
           p_freq: f.freq, p_usos: f.usos, p_confianca: f.conf,
         });
         if (error) throw error;
-        participante = data;
-        salvar({ pid: participante, concluido: false, resultado: null });
+        salvar({ pid: data, concluido: false, resultado: null });
+        return data;
       }
-      const { data: roteiro, error: erroRoteiro } = await supabase.rpc('obter_teste_v3', { p_participante: participante });
-      if (erroRoteiro) throw erroRoteiro;
+      const tinhaSessaoLocal = !!ler().pid;
+      let participante = ler().pid || await cadastrar();
+      let resposta = await supabase.rpc('obter_teste_v3', { p_participante: participante });
+      // Uma limpeza entre a abertura da página e o clique em "Começar"
+      // também pode invalidar o ID. Tentar UMA vez com novo participante.
+      if (resposta.error && tinhaSessaoLocal && sessaoLocalInvalida(resposta.error)) {
+        limparSessaoLocal();
+        participante = await cadastrar();
+        resposta = await supabase.rpc('obter_teste_v3', { p_participante: participante });
+      }
+      if (resposta.error) throw resposta.error;
       salvar({ pid: participante, concluido: false, resultado: null });
       setPid(participante);
-      instalarRoteiro(await adicionarGanhosDeAudio(roteiro), true);
+      instalarRoteiro(await adicionarGanhosDeAudio(resposta.data), true);
     } catch (e) {
       setErro(e.message || 'Erro ao iniciar. Verifique o SQL e a quantidade de conteúdos cadastrados.');
     } finally { setBusy(false); }

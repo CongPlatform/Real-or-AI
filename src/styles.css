@@ -520,3 +520,34 @@ details p{line-height:1.65;font-size:.92rem}
 .v8-item-conteudo.v8-largura-total{grid-template-columns:minmax(0,1fr)}
 .v8-item-conteudo.v8-largura-total .v8-item-previa{width:100%}
 .v8-item-conteudo.v8-largura-total .v8-previa-video{max-height:230px}
+
+
+/* V9 — Abertura: uma única hierarquia, leve no desktop e no celular. */
+.inicio-tela{max-width:690px;min-height:100dvh;padding-top:28px;padding-bottom:34px}
+.inicio-cartao{gap:0;padding:clamp(23px,4vw,34px);border-radius:25px;align-items:stretch}
+.inicio-cabecalho{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:23px}
+.inicio-simbolo{display:flex;align-items:center;justify-content:center;gap:3px;flex:0 0 auto;width:62px;height:57px;background:var(--ia);border:3px solid var(--ink);border-radius:15px;box-shadow:3px 3px 0 var(--ink);font-weight:950;color:#fff;font-size:1.2rem;letter-spacing:-.06em;transform:rotate(-4deg)}
+.inicio-simbolo span:last-child{color:var(--real);font-size:.83rem;letter-spacing:-.06em}
+.inicio-etiqueta{font-size:.7rem;letter-spacing:.11em;color:var(--ia);font-weight:900;line-height:1.5}
+.inicio-cartao .inicio-titulo{font-size:clamp(2.8rem,7.6vw,4.35rem);letter-spacing:-.045em;line-height:1.03;margin:0 0 14px}
+.inicio-titulo span{color:var(--ia);white-space:nowrap}
+.inicio-cartao .inicio-chamada{font-size:clamp(1.04rem,2.6vw,1.22rem);line-height:1.47;max-width:52ch;color:var(--ink);font-weight:550;margin:0 0 22px}
+.inicio-fatos{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 23px}
+.inicio-fatos span{display:inline-flex;gap:6px;align-items:baseline;padding:8px 11px;border:1.5px solid #ded7f5;background:#f8f6ff;border-radius:11px;color:var(--mut);font-size:.82rem;font-weight:600}
+.inicio-fatos strong{font-family:'Bricolage Grotesque','DM Sans',sans-serif;color:var(--ink);font-size:1.17rem;font-weight:900}
+.inicio-definicao{background:#f3eeff;border-left:5px solid var(--ia);border-radius:11px;padding:15px 17px;margin-bottom:17px}
+.inicio-definicao-titulo{display:flex;align-items:center;gap:9px;font-size:.96rem;margin-bottom:6px}
+.inicio-definicao-titulo span{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:var(--ia);color:#fff;border-radius:50%;font-weight:900}
+.inicio-cartao .inicio-definicao p{margin:0;max-width:none;font-size:.94rem;line-height:1.55;color:var(--ink)}
+.inicio-cartao .inicio-rodape{color:var(--mut);font-size:.85rem;line-height:1.5;margin:0 0 20px;max-width:none}
+.inicio-botao{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:57px}
+.inicio-botao span{font-size:1.25rem}
+@media(max-width:470px){
+  .inicio-tela{padding:18px 14px 30px;justify-content:flex-start}
+  .inicio-cartao{padding:21px 19px;border-radius:22px;box-shadow:5px 5px 0 var(--ink)}
+  .inicio-cabecalho{margin-bottom:18px;gap:11px}
+  .inicio-simbolo{width:52px;height:50px}
+  .inicio-cartao .inicio-titulo{font-size:clamp(2.55rem,11.5vw,3.6rem)}
+  .inicio-fatos span{font-size:.75rem;padding:7px 9px}
+  .inicio-definicao{padding:12px 13px}
+}
