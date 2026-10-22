@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TIPOS } from '../lib/opcoes';
 import { analisarTextosEmLote } from '../lib/textosLote';
+import { criarItem } from '../lib/conteudosStorage';
+import ImportacaoMidiasEmLote from './ImportacaoMidiasEmLote';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -13,37 +15,6 @@ const nomeSemExtensao = (nome) => nome.replace(/\.(png|jpe?g)$/i, '').trim();
 const imagemValida = (arquivo) =>
   /\.(png|jpe?g)$/i.test(arquivo.name) &&
   (!arquivo.type || ['image/png', 'image/jpeg'].includes(arquivo.type));
-
-async function subir(tipo, arq) {
-  const ext = arq.name.split('.').pop().toLowerCase();
-  const path = `${tipo}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from('midia').upload(path, arq, { contentType: arq.type });
-  if (error) throw error;
-  return { path, url: supabase.storage.from('midia').getPublicUrl(path).data.publicUrl };
-}
-
-async function criarItem(tipo, it, titulo, extra) {
-  let path = null;
-  let conteudoId = null;
-  try {
-    let url = null;
-    if (tipo !== 'texto') ({ path, url } = await subir(tipo, it.arq));
-    const { data, error } = await supabase.from('conteudos')
-      .insert({ tipo, titulo: titulo || null, url, texto: tipo === 'texto' ? it.texto.trim() : null, ...extra })
-      .select('id').single();
-    if (error) throw error;
-    conteudoId = data.id;
-    const { error: erroGabarito } = await supabase.from('gabarito')
-      .insert({ conteudo_id: conteudoId, eh_ia: it.ia });
-    if (erroGabarito) throw erroGabarito;
-    return conteudoId;
-  } catch (erro) {
-    // Se uma das etapas falhar, desfaz os registros/arquivos desta tentativa.
-    if (conteudoId) await supabase.from('conteudos').delete().eq('id', conteudoId);
-    if (path) await supabase.storage.from('midia').remove([path]);
-    throw erro;
-  }
-}
 
 function ImportacaoEmLote({ recarregar }) {
   const [arquivos, setArquivos] = useState([]);
@@ -424,6 +395,10 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       <ImportacaoEmLote recarregar={recarregar} />
 
       <ImportacaoTextosEmLote recarregar={recarregar} />
+
+      <ImportacaoMidiasEmLote tipo="audio" recarregar={recarregar} />
+
+      <ImportacaoMidiasEmLote tipo="video" recarregar={recarregar} />
 
       <section className="painel">
         <h2>Cobertura por tipo</h2>

@@ -152,3 +152,12 @@ details p{line-height:1.65;font-size:.92rem}
 .lote-item-topo .lote-status{margin:0}
 .lote-erros{border:2px solid var(--warn);background:#fff4f4;border-radius:10px;padding:12px;font-size:.9rem}
 .lote-erros ul{margin:8px 0 0;padding-left:20px}
+
+/* Pré-visualização de áudios e vídeos importados em lote */
+.midias-lista{max-height:560px}
+.midias-lista .lote-original{flex:1;min-width:0}
+.lote-tamanho{font-size:.8rem;overflow-wrap:anywhere}
+.lote-detalhes{margin:0;border-top:1px solid rgba(20,18,43,.14);padding-top:8px}
+.lote-detalhes summary{font-size:.86rem}
+.lote-player{display:block;max-width:100%;width:100%;margin-top:10px}
+.lote-video{max-height:270px;border-radius:8px;background:#151515;object-fit:contain}

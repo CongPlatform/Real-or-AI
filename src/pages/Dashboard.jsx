@@ -176,7 +176,7 @@ export default function Dashboard({ dados, atual }) {
               </tbody>
             </table>
             <p className="mut">
-              Acerto quando era IA: {f1((100 * ia_ia) / (nIA || NaN))}% · acerto quando era real: {f1((100 * real_real) / (nReal || NaN))}%.
+              Acerto quando era IA: {f1((100 * ia_ia) / (nIA || NaN))}% · acerto quando era real: {f1((100 * real_real) / (nReal || NaN))}%. Acurácia balanceada: {f1((100 * ia_ia) / (nIA || NaN) / 2 + (100 * real_real) / (nReal || NaN) / 2)}%.
               {' '}Chamaram de “IA” {f1((100 * (ia_ia + real_ia)) / (nIA + nReal || NaN))}% das vezes.
             </p>
           </section>

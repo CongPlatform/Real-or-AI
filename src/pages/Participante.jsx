@@ -3,12 +3,16 @@ import { supabase } from '../lib/supabase';
 import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes';
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
+import { INDIVIDUAIS_POR_TIPO, COMPARACOES_POR_TIPO } from '../lib/config';
 
 const LS = 'realia_v2';
 const ler = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
 const salvar = (d) => { try { localStorage.setItem(LS, JSON.stringify({ ...ler(), ...d })); } catch { /* ignora */ } };
 const embaralhar = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+// sorteia k itens de cada tipo (sem repetir) de dentro do banco
+const sortear = (pool, porTipo) =>
+  Object.keys(TIPOS).flatMap((t) => embaralhar(pool.filter((c) => c.tipo === t)).slice(0, porTipo[t] ?? 0));
 
 async function enviarRpc(nome, args) {
   for (let t = 0; t < 4; t++) {
@@ -201,18 +205,23 @@ export default function Participante() {
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function carregar(feitos = [], feitosComp = []) {
+  // sorteio = ids já sorteados para esta pessoa (guardado no aparelho para não mudar se ela recarregar a página)
+  async function carregar(sorteio = null, feitos = [], feitosComp = []) {
     const [a, b] = await Promise.all([
       supabase.from('conteudos').select('id,tipo,url,texto').eq('ativo', true).is('comparacao_id', null),
       supabase.from('comparacoes').select('id,tipo,conteudos(id,tipo,url,texto)').eq('ativo', true),
     ]);
     if (a.error) throw a.error;
-    if (b.error) throw b.error;
-    setTotal(a.data.length);
-    const cs = b.data
-      .filter((c) => (c.conteudos || []).length === 2 && !feitosComp.includes(c.id))
-      .map((c) => ({ ...c, conteudos: embaralhar(c.conteudos) }));
-    return { q: embaralhar(a.data.filter((c) => !feitos.includes(c.id))), cs: embaralhar(cs) };
+    if (b.error) console.warn('Comparações indisponíveis:', b.error.message);
+    const rodadas = (b.data || []).filter((c) => (c.conteudos || []).length === 2);
+    const ind = sorteio ? a.data.filter((c) => sorteio.ind.includes(c.id)) : sortear(a.data, INDIVIDUAIS_POR_TIPO);
+    const cmp = sorteio ? rodadas.filter((c) => sorteio.comp.includes(c.id)) : sortear(rodadas, COMPARACOES_POR_TIPO);
+    setTotal(ind.length);
+    return {
+      sorteio: { ind: ind.map((c) => c.id), comp: cmp.map((c) => c.id) },
+      q: embaralhar(ind.filter((c) => !feitos.includes(c.id))),
+      cs: embaralhar(cmp.filter((c) => !feitosComp.includes(c.id)).map((c) => ({ ...c, conteudos: embaralhar(c.conteudos) }))),
+    };
   }
 
   useEffect(() => {
@@ -222,7 +231,7 @@ export default function Participante() {
         if (s.pid) setPid(s.pid);
         if (s.concluido) return setEtapa('fim');
         if (s.pid) {
-          const { q, cs } = await carregar(s.feitos || [], s.feitosComp || []);
+          const { q, cs } = await carregar(s.sorteio || null, s.feitos || [], s.feitosComp || []);
           setFila(q); setComps(cs);
           return setEtapa(q.length ? 'p1' : cs.length ? 'p2_intro' : 'fim');
         }
@@ -234,17 +243,18 @@ export default function Participante() {
   async function iniciar(f) {
     setBusy(true); setErro('');
     try {
-      const { q, cs } = await carregar();
+      const { q, cs, sorteio } = await carregar();
       if (!q.length && !cs.length) throw new Error('vazio');
       const { data, error } = await supabase.rpc('registrar_participante', {
         p_faixa: f.faixa, p_genero: f.genero || null, p_escolaridade: f.esc, p_freq: f.freq, p_usos: f.usos, p_confianca: f.conf,
       });
       if (error) throw error;
-      salvar({ pid: data, feitos: [], feitosComp: [], concluido: false, resultado: null });
+      salvar({ pid: data, sorteio, feitos: [], feitosComp: [], concluido: false, resultado: null });
       setPid(data); setFila(q); setComps(cs); setI(0); setJ(0);
       setEtapa(q.length ? 'p1_intro' : 'p2_intro');
     } catch (e) {
-      setErro(e.message === 'vazio' ? 'Ainda não há conteúdos cadastrados.' : 'Erro ao iniciar. Tente de novo.');
+      console.error(e);
+      setErro(e.message === 'vazio' ? 'Ainda não há conteúdos cadastrados.' : `Erro ao iniciar: ${e.message || 'tente de novo'}`);
     } finally { setBusy(false); }
   }
 
