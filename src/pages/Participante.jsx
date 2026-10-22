@@ -3,25 +3,10 @@ import { supabase } from '../lib/supabase';
 import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes';
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
-import { INDIVIDUAIS_POR_TIPO, COMPARACOES_POR_TIPO } from '../lib/config';
 
-const LS = 'realia_v2';
+const LS = 'realia_v3';
 const ler = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
 const salvar = (d) => { try { localStorage.setItem(LS, JSON.stringify({ ...ler(), ...d })); } catch { /* ignora */ } };
-const embaralhar = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
-const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
-// sorteia k itens de cada tipo (sem repetir) de dentro do banco
-const sortear = (pool, porTipo) =>
-  Object.keys(TIPOS).flatMap((t) => embaralhar(pool.filter((c) => c.tipo === t)).slice(0, porTipo[t] ?? 0));
-
-async function enviarRpc(nome, args) {
-  for (let t = 0; t < 4; t++) {
-    const { error } = await supabase.rpc(nome, args);
-    if (!error) return;
-    await pausa(800 * (t + 1));
-  }
-  console.error('Resposta não enviada', nome, args);
-}
 
 const PERGUNTAS = [
   { k: 'faixa', t: 'Qual a sua idade?', op: FAIXAS },
@@ -62,7 +47,7 @@ function Wizard({ onFim, busy, erro }) {
             <div className="mini frente"><span className="selo-mini">Sem IA</span></div>
           </div>
           <h1>Real<br />ou IA?</h1>
-          <p>Pesquisa de matemática avançada. Primeiro 6 perguntas rápidas, depois você decide o que foi feito por IA. Leva poucos minutos e é anônima.</p>
+          <p>Pesquisa de matemática avançada. Primeiro 6 perguntas rápidas, depois você decide o que foi feito por IA. São 30 decisões; o teste é anônimo e inclui áudios com escuta por trechos.</p>
           <button className="cta" style={{ alignSelf: 'stretch' }} onClick={() => setI(0)}>Começar</button>
         </div>
       </div>
@@ -114,7 +99,23 @@ function ParteIntro({ titulo, texto, onOk }) {
   );
 }
 
-function Comparar({ rodada, n, total, onConfirm }) {
+const NOMES = { imagem: 'imagem', texto: 'texto', audio: 'áudio', video: 'vídeo' };
+const NOMES_PLURAL = { imagem: 'imagens', texto: 'textos', audio: 'áudios', video: 'vídeos' };
+
+function enunciado(individual, origem, tipo) {
+  const nome = NOMES[tipo] || 'conteúdo';
+  const plu = NOMES_PLURAL[tipo] || 'conteúdos';
+  if (individual) {
+    if (origem === 'ia') return `Este ${nome} foi gerado por inteligência artificial?`;
+    if (origem === 'humano') return `Este ${nome} foi produzido por uma pessoa?`;
+    return `Qual é a origem deste ${nome}?`;
+  }
+  if (origem === 'ia') return `Quais destes ${plu} foram feitos por IA?`;
+  if (origem === 'humano') return `Quais destes ${plu} foram produzidos por pessoas?`;
+  return `Classifique cada um destes ${plu} de acordo com sua origem.`;
+}
+
+function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
   const [m, setM] = useState({});
   const t0 = useRef(performance.now());
   const itens = rodada.conteudos;
@@ -125,21 +126,26 @@ function Comparar({ rodada, n, total, onConfirm }) {
         <div className="barra"><i style={{ width: `${(n / total) * 100}%` }} /></div>
         <span>{n + 1}/{total}</span>
       </header>
-      <p className="mut">Marque, para cada conteúdo, se foi feito por IA ou não. Pode ser que nenhum, só um ou os dois sejam de IA.</p>
+      <h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2>
+      <p className="mut">Avalie cada conteúdo separadamente. Ambos podem ter a mesma origem ou origens diferentes.</p>
       <div className="comp-grade">
         {itens.map((c, k) => (
           <div className="comp-item" key={c.id}>
             <span className="tag">Conteúdo {k + 1}</span>
             <div className="conteudo"><Midia item={c} /></div>
             <div className="escolha">
-              <button className={'op ia' + (m[c.id] === true ? ' on' : '')} onClick={() => setM((x) => ({ ...x, [c.id]: true }))}>Feito por IA</button>
-              <button className={'op real' + (m[c.id] === false ? ' on' : '')} onClick={() => setM((x) => ({ ...x, [c.id]: false }))}>Sem IA</button>
+              <button className={'op ia' + (m[c.id] === true ? ' on' : '')}
+                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: true }))}>IA</button>
+              <button className={'op real' + (m[c.id] === false ? ' on' : '')}
+                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: false }))}>Humano</button>
             </div>
           </div>
         ))}
       </div>
-      <button className="cta" disabled={!pronto} onClick={() => onConfirm(itens.filter((c) => m[c.id]).map((c) => c.id), Math.round(performance.now() - t0.current))}>
-        Confirmar
+      {erro && <p className="erro" role="alert">{erro}</p>}
+      <button className="cta" disabled={!pronto || busy}
+        onClick={() => onConfirm(itens.filter((c) => m[c.id]).map((c) => c.id), Math.round(performance.now() - t0.current))}>
+        {busy ? 'Salvando…' : 'Confirmar'}
       </button>
     </div>
   );
@@ -152,7 +158,7 @@ function Fim({ pid, total }) {
 
   async function ver() {
     setBusy(true);
-    const { data, error } = await supabase.rpc('finalizar_participante', { p_participante: pid, p_estimativa: est });
+    const { data, error } = await supabase.rpc('finalizar_participante_v3', { p_participante: pid, p_estimativa: est });
     setBusy(false);
     if (error) return alert('Não foi possível enviar. Tente de novo.');
     salvar({ resultado: data, concluido: true });
@@ -164,7 +170,7 @@ function Fim({ pid, total }) {
       <div className="tela centro largo">
         <div className="cartao">
           <h2 className="pergunta">Última pergunta</h2>
-          <p className="mut">Na parte 1 (um conteúdo por vez), quantos dos {total} você acha que acertou?</p>
+          <p className="mut">Nas {total} decisões individuais, quantas você acha que acertou?</p>
           <div className="estima"><b>{est}</b><span>de {total}</span></div>
           <input type="range" min="0" max={total} value={est} onChange={(e) => setEst(+e.target.value)} />
           <button className="cta" disabled={busy} onClick={ver}>{busy ? 'Enviando…' : 'Ver meu resultado'}</button>
@@ -187,7 +193,7 @@ function Fim({ pid, total }) {
             </div>
           ))}
         </div>
-        {res.comp?.total > 0 && <p className="mut">Parte 2: você acertou os dois conteúdos em {res.comp.acertos} de {res.comp.total} rodadas.</p>}
+        {res.comp?.total > 0 && <p className="mut">Parte 2: você acertou os dois conteúdos em {res.comp.acertos} de {res.comp.total} comparações.</p>}
         <p className="mut">Suas respostas já entraram na pesquisa. Passe o link para um amigo!</p>
       </div>
     </div>
@@ -202,26 +208,24 @@ export default function Participante() {
   const [comps, setComps] = useState([]);
   const [j, setJ] = useState(0);
   const [total, setTotal] = useState(0);
+  const [jaRespondidas, setJaRespondidas] = useState(0);
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // sorteio = ids já sorteados para esta pessoa (guardado no aparelho para não mudar se ela recarregar a página)
-  async function carregar(sorteio = null, feitos = [], feitosComp = []) {
-    const [a, b] = await Promise.all([
-      supabase.from('conteudos').select('id,tipo,url,texto').eq('ativo', true).is('comparacao_id', null),
-      supabase.from('comparacoes').select('id,tipo,conteudos(id,tipo,url,texto)').eq('ativo', true),
-    ]);
-    if (a.error) throw a.error;
-    if (b.error) console.warn('Comparações indisponíveis:', b.error.message);
-    const rodadas = (b.data || []).filter((c) => (c.conteudos || []).length === 2);
-    const ind = sorteio ? a.data.filter((c) => sorteio.ind.includes(c.id)) : sortear(a.data, INDIVIDUAIS_POR_TIPO);
-    const cmp = sorteio ? rodadas.filter((c) => sorteio.comp.includes(c.id)) : sortear(rodadas, COMPARACOES_POR_TIPO);
-    setTotal(ind.length);
-    return {
-      sorteio: { ind: ind.map((c) => c.id), comp: cmp.map((c) => c.id) },
-      q: embaralhar(ind.filter((c) => !feitos.includes(c.id))),
-      cs: embaralhar(cmp.filter((c) => !feitosComp.includes(c.id)).map((c) => ({ ...c, conteudos: embaralhar(c.conteudos) }))),
-    };
+  function instalarRoteiro(roteiro, comIntro = false) {
+    const individuais = roteiro.filter((r) => r.kind === 'individual');
+    const comparacoes = roteiro.filter((r) => r.kind === 'comparacao');
+    const pendentes = individuais.filter((r) => !r.respondida);
+    const paresPendentes = comparacoes.filter((r) => !r.respondida);
+    if (roteiro.length !== 30) throw new Error('O banco não conseguiu sortear 30 decisões válidas.');
+    setTotal(individuais.length);
+    setJaRespondidas(roteiro.filter((r) => r.respondida).length);
+    salvar({ nIndividuais: individuais.length });
+    setFila(pendentes);
+    setComps(paresPendentes);
+    setI(0); setJ(0);
+    setEtapa(pendentes.length ? (comIntro ? 'p1_intro' : 'p1') :
+      paresPendentes.length ? (comIntro ? 'p2_intro' : 'p2') : 'fim');
   }
 
   useEffect(() => {
@@ -231,67 +235,92 @@ export default function Participante() {
         if (s.pid) setPid(s.pid);
         if (s.concluido) return setEtapa('fim');
         if (s.pid) {
-          const { q, cs } = await carregar(s.sorteio || null, s.feitos || [], s.feitosComp || []);
-          setFila(q); setComps(cs);
-          return setEtapa(q.length ? 'p1' : cs.length ? 'p2_intro' : 'fim');
+          const { data, error } = await supabase.rpc('obter_teste_v3', { p_participante: s.pid });
+          if (error) throw error;
+          instalarRoteiro(data);
+          return;
         }
-      } catch { setErro('Não foi possível carregar. Verifique sua conexão.'); }
+      } catch (e) { setErro(e.message || 'Erro ao recuperar seu teste.'); }
       setEtapa('intro');
     })();
   }, []);
 
+  // Carrega apenas a próxima imagem depois do conteúdo atual estar pronto.
+  // Assim evitamos disputar banda com a imagem principal em conexões móveis lentas.
+  const prefazer = () => {
+    const proximo = fila[i + 1];
+    if (proximo?.tipo === 'imagem' && proximo.url) {
+      const img = new Image(); img.src = proximo.url;
+    }
+  };
+
   async function iniciar(f) {
     setBusy(true); setErro('');
     try {
-      const { q, cs, sorteio } = await carregar();
-      if (!q.length && !cs.length) throw new Error('vazio');
-      const { data, error } = await supabase.rpc('registrar_participante', {
-        p_faixa: f.faixa, p_genero: f.genero || null, p_escolaridade: f.esc, p_freq: f.freq, p_usos: f.usos, p_confianca: f.conf,
-      });
-      if (error) throw error;
-      salvar({ pid: data, sorteio, feitos: [], feitosComp: [], concluido: false, resultado: null });
-      setPid(data); setFila(q); setComps(cs); setI(0); setJ(0);
-      setEtapa(q.length ? 'p1_intro' : 'p2_intro');
+      let participante = ler().pid;
+      if (!participante) {
+        const { data, error } = await supabase.rpc('registrar_participante', {
+          p_faixa: f.faixa, p_genero: f.genero || null, p_escolaridade: f.esc,
+          p_freq: f.freq, p_usos: f.usos, p_confianca: f.conf,
+        });
+        if (error) throw error;
+        participante = data;
+        salvar({ pid: participante, concluido: false, resultado: null });
+      }
+      const { data: roteiro, error: erroRoteiro } = await supabase.rpc('obter_teste_v3', { p_participante: participante });
+      if (erroRoteiro) throw erroRoteiro;
+      salvar({ pid: participante, concluido: false, resultado: null });
+      setPid(participante);
+      instalarRoteiro(roteiro, true);
     } catch (e) {
-      console.error(e);
-      setErro(e.message === 'vazio' ? 'Ainda não há conteúdos cadastrados.' : `Erro ao iniciar: ${e.message || 'tente de novo'}`);
+      setErro(e.message || 'Erro ao iniciar. Verifique o SQL e a quantidade de conteúdos cadastrados.');
     } finally { setBusy(false); }
   }
 
-  function decidir(c, ia, ms) {
-    enviarRpc('enviar_resposta', { p_participante: pid, p_conteudo: c.id, p_resposta_ia: ia, p_tempo_ms: ms });
-    salvar({ feitos: [...(ler().feitos || []), c.id] });
-    if (i + 1 >= fila.length) setEtapa(comps.length ? 'p2_intro' : 'fim'); else setI(i + 1);
+  async function decidir(c, ia, ms, met = {}) {
+    setBusy(true); setErro('');
+    const { error } = await supabase.rpc('enviar_resposta_v3', {
+      p_participante: pid, p_conteudo: c.id, p_resposta_ia: ia, p_tempo_ms: ms,
+      p_segundos_reproduzidos: met.segundosReproduzidos || 0,
+      p_pedidos_mais: met.pedidosMais || 0,
+    });
+    setBusy(false);
+    if (error) { setErro('Não conseguimos salvar esta resposta. ' + error.message); throw error; }
+    if (i + 1 >= fila.length) setEtapa(comps.length ? 'p2_intro' : 'fim');
+    else setI((atual) => atual + 1);
   }
 
-  function decidirComp(r, marcados, ms) {
-    enviarRpc('enviar_comparacao', { p_participante: pid, p_comparacao: r.id, p_marcados: marcados, p_tempo_ms: ms });
-    salvar({ feitosComp: [...(ler().feitosComp || []), r.id] });
-    if (j + 1 >= comps.length) setEtapa('fim'); else { setJ(j + 1); window.scrollTo(0, 0); }
+  async function decidirComp(r, marcados, ms) {
+    setBusy(true); setErro('');
+    const { error } = await supabase.rpc('enviar_comparacao_v3', {
+      p_participante: pid, p_comparacao: r.id, p_marcados: marcados, p_tempo_ms: ms,
+    });
+    setBusy(false);
+    if (error) { setErro('Não conseguimos salvar esta comparação. ' + error.message); return; }
+    if (j + 1 >= comps.length) setEtapa('fim');
+    else { setJ((atual) => atual + 1); window.scrollTo(0, 0); }
   }
 
   if (etapa === 'carregando') return <div className="tela"><p className="mut">Carregando…</p></div>;
   if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} />;
-  if (etapa === 'p1_intro') {
-    return <ParteIntro titulo="Parte 1: um conteúdo por vez" onOk={() => setEtapa('p1')}
-      texto={['Você vai ver conteúdos em imagem, áudio, texto e vídeo, um de cada vez. Para cada um, diga se foi feito por IA ou não.', 'Em computador, arraste a carta com o mouse ou use as setas do teclado.']} />;
-  }
-  if (etapa === 'p2_intro') {
-    return <ParteIntro titulo="Parte 2: dois conteúdos por vez" onOk={() => setEtapa('p2')}
-      texto={['Agora aparecem dois conteúdos do mesmo tipo. Marque, para cada um, se foi feito por IA.', 'Não existe padrão: em cada rodada, nenhum, só um ou os dois podem ser de IA.']} />;
-  }
-  if (etapa === 'fim') return <Fim pid={pid} total={total || ler().feitos?.length || 0} />;
+  if (etapa === 'p1_intro') return <ParteIntro titulo="Parte 1: um conteúdo por vez" onOk={() => setEtapa('p1')}
+      texto={['Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, escute primeiro um trecho de até 8 segundos; depois, responda ou peça para ouvir mais.']} />;
+  if (etapa === 'p2_intro') return <ParteIntro titulo="Parte 2: comparações" onOk={() => setEtapa('p2')}
+      texto={['Agora aparecerão dois conteúdos. Classifique cada um independentemente: ambos podem ser reais, ambos podem ser IA, ou podem ser diferentes.', 'Não é preciso escolher obrigatoriamente um de cada.']} />;
+  if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 24} />;
   if (etapa === 'p2') {
-    return <Comparar key={comps[j].id} rodada={comps[j]} n={j} total={comps.length} onConfirm={(m, ms) => decidirComp(comps[j], m, ms)} />;
+    const c = comps[j];
+    return <Comparar key={c.id} rodada={c} n={jaRespondidas + fila.length + j} total={30}
+      onConfirm={(m, ms) => decidirComp(c, m, ms)} busy={busy} erro={erro} />;
   }
   const c = fila[i];
-  return (
-    <div className="tela quiz">
-      <header className="topo">
-        <div className="barra"><i style={{ width: `${(i / fila.length) * 100}%` }} /></div>
-        <span>{i + 1}/{fila.length}</span>
-      </header>
-      <SwipeCard key={c.id} item={c} primeiro={i === 0} onDecide={(ia, ms) => decidir(c, ia, ms)} />
-    </div>
-  );
+  return <div className="tela quiz">
+    <header className="topo">
+      <div className="barra"><i style={{ width: `${((jaRespondidas + i) / 30) * 100}%` }} /></div>
+      <span>{jaRespondidas + i + 1}/30 decisões</span>
+    </header>
+    <SwipeCard key={c.id} item={c} primeiro={i === 0}
+      pergunta={enunciado(true, c.enquadramento, c.tipo)} busy={busy} erro={erro}
+      onDecide={(ia, ms, met) => decidir(c, ia, ms, met)} onConteudoCarregado={prefazer} />
+  </div>;
 }

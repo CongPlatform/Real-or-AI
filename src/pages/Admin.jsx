@@ -25,15 +25,21 @@ function Login() {
 
 function Painel({ sair }) {
   const [d, setD] = useState(null);
+  const [metricas, setMetricas] = useState(null);
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('stats');
   const [atual, setAtual] = useState(null);
   const tm = useRef();
 
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.rpc('admin_dados');
-    if (error) return setErro(error.message);
-    setErro(''); setD(data); setAtual(new Date());
+    const [principal, adicional] = await Promise.all([
+      supabase.rpc('admin_dados'), supabase.rpc('admin_metricas_v3'),
+    ]);
+    if (principal.error) return setErro(principal.error.message);
+    setD(principal.data);
+    setMetricas(adicional.error ? null : adicional.data);
+    setErro(adicional.error ? 'Métricas novas indisponíveis: execute o SQL PATCH_30_PERGUNTAS_ENQUADRAMENTO_AUDIO.sql no Supabase.' : '');
+    setAtual(new Date());
   }, []);
 
   useEffect(() => {
@@ -59,7 +65,7 @@ function Painel({ sair }) {
       </header>
       {erro && <p className="erro">{erro}</p>}
       {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
-        ? <Dashboard dados={d} atual={atual} />
+        ? <Dashboard dados={d} atual={atual} extras={metricas} />
         : <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} />}
     </div>
   );

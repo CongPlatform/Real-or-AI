@@ -11,7 +11,7 @@ const f1 = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : 
 const fp = (p) => (!Number.isFinite(p) ? '—' : p < 0.001 ? '< 0,001' : f1(p, 3));
 const COR = { real: '#C6F432', ia: '#5B3DF5', ref: '#FF5C5C', ink: '#14122B', sol: '#FFC247' };
 
-function Barras({ dados, y = 'media', cor = COR.ink, dominio = [0, 100], unid = '%', ref = 50, rotulo = 'Média', longo = false }) {
+function Barras({ dados, y = 'media', cor = COR.ink, dominio = [0, 100], unid = '%', linhaReferencia = 50, rotulo = 'Média', longo = false }) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={dados} margin={{ top: 18, right: 8, left: -12, bottom: 0 }}>
@@ -19,7 +19,7 @@ function Barras({ dados, y = 'media', cor = COR.ink, dominio = [0, 100], unid = 
         <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} angle={longo ? -25 : 0} textAnchor={longo ? 'end' : 'middle'} height={longo ? 78 : 30} />
         <YAxis domain={dominio} tick={{ fontSize: 11 }} unit={unid} allowDecimals={false} />
         <Tooltip formatter={(v) => [f1(v) + unid, rotulo]} />
-        {ref !== false && <ReferenceLine y={ref} stroke={COR.ref} strokeDasharray="4 4" />}
+        {linhaReferencia !== false && <ReferenceLine y={linhaReferencia} stroke={COR.ref} strokeDasharray="4 4" />}
         <Bar dataKey={y} fill={cor} stroke={COR.ink} strokeWidth={2} radius={[6, 6, 0, 0]}>
           <LabelList dataKey={y} position="top" formatter={(v) => f1(v, unid === '%' ? 0 : 0)} fontSize={11} />
         </Bar>
@@ -43,7 +43,55 @@ function exportar(linhas) {
   a.download = 'resultados-real-ou-ia.csv'; a.click();
 }
 
-export default function Dashboard({ dados, atual }) {
+
+const ROTULOS_ENQUADRAMENTO = { neutro: 'Neutra', ia: 'Pergunta sobre IA', humano: 'Pergunta sobre humano' };
+const media = (v) => v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
+function exportarRespostas(extras) {
+  const cab = ['participante_id','tipo_rodada','conteudo_id','tipo','enquadramento','era_ia','resposta_ia','acertou','tempo_ms','segundos_reproduzidos','pedidos_mais','numero_ia_no_par','marcados_ia'];
+  const individuais = (extras.individuais || []).map((r) => [r.participante_id,'individual',r.conteudo_id,r.tipo,r.enquadramento,r.era_ia,r.resposta_ia,r.acertou,r.tempo_ms,r.segundos_reproduzidos,r.pedidos_mais,'','']);
+  const comparacoes = (extras.comparacoes || []).map((r) => [r.participante_id,'comparacao',r.comparacao_id,r.tipo,r.enquadramento,'','',r.acertou,r.tempo_ms,'','',r.n_reais_ia,r.n_marcados_ia]);
+  const csv = '\ufeff' + [cab,...individuais,...comparacoes].map((x) => x.map((v) => `"${String(v ?? '').replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'respostas-por-enunciado-e-audio.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function DadosEnquadramento({ extras }) {
+  if (!extras) return null;
+  const ind = extras.individuais || [];
+  const comp = extras.comparacoes || [];
+  if (!ind.length && !comp.length) return <section className="painel larga"><h2>Enquadramento das perguntas e escuta dos áudios</h2><p className="mut">Os dados aparecerão depois que alguém realizar o novo teste de 30 decisões.</p></section>;
+  const conteudo = (linhas) => ['neutro','ia','humano'].map((chave) => {
+    const x = linhas.filter((r) => r.enquadramento === chave);
+    return { chave, n: x.length, taxa: media(x.map((r) => Number(r.acertou))), ia: media(x.map((r) => Number(r.resposta_ia))), segundos: media(x.map((r) => (+r.tempo_ms || 0) / 1000)) };
+  });
+  const audios = ind.filter((r) => r.tipo === 'audio');
+  return <section className="painel larga">
+    <h2>Formulação das perguntas e escuta progressiva</h2>
+    <p className="mut">A formulação é sorteada e registrada, sem revelar a origem correta. Diferenças entre grupos são exploratórias até haver amostra suficiente.</p>
+    <div className="acoes"><span className="mut">{ind.length} decisões individuais · {comp.length} comparações</span>
+      <button className="link" onClick={() => exportarRespostas(extras)}>CSV por pergunta e escuta</button></div>
+    <h3>Perguntas individuais</h3>
+    <div className="rolagem"><table><thead><tr><th>Formulação</th><th>Respostas</th><th>Acertos</th><th>Disse IA</th><th>Tempo médio (s)</th></tr></thead>
+      <tbody>{conteudo(ind).map((r) => <tr key={r.chave}><td>{ROTULOS_ENQUADRAMENTO[r.chave]}</td><td>{r.n}</td><td>{f1(100*r.taxa)}%</td><td>{f1(100*r.ia)}%</td><td>{f1(r.segundos)}</td></tr>)}</tbody></table></div>
+    <h3>Formulação × modalidade (classificação individual)</h3>
+    <div className="rolagem"><table><thead><tr><th>Modalidade</th><th>Formulação</th><th>Respostas</th><th>Acertos</th><th>Classificou como IA</th></tr></thead>
+    <tbody>{['imagem','texto','audio','video'].flatMap((tipo) => ['neutro','ia','humano'].map((frame) => {
+      const x = ind.filter((r) => r.tipo === tipo && r.enquadramento === frame);
+      return x.length ? <tr key={`${tipo}-${frame}`}><td>{TIPOS[tipo]}</td><td>{ROTULOS_ENQUADRAMENTO[frame]}</td><td>{x.length}</td>
+        <td>{f1(100 * media(x.map((r) => Number(r.acertou))))}%</td><td>{f1(100 * media(x.map((r) => Number(r.resposta_ia))))}%</td></tr> : null;
+    }))}</tbody></table></div>
+    <h3>Comparações (ambos os itens devem estar corretos)</h3>
+    <div className="rolagem"><table><thead><tr><th>Formulação</th><th>Respostas</th><th>Acertos exatos</th><th>Tempo médio (s)</th></tr></thead>
+      <tbody>{conteudo(comp).map((r) => <tr key={r.chave}><td>{ROTULOS_ENQUADRAMENTO[r.chave]}</td><td>{r.n}</td><td>{f1(100*r.taxa)}%</td><td>{f1(r.segundos)}</td></tr>)}</tbody></table></div>
+    <h3>Áudios com escuta por trechos</h3>
+    <div className="rolagem"><table><thead><tr><th>Respostas</th><th>Segundos realmente reproduzidos (média)</th><th>Pedidos de mais áudio (média)</th><th>Acertos</th></tr></thead>
+      <tbody><tr><td>{audios.length}</td><td>{f1(media(audios.map((r) => +r.segundos_reproduzidos || 0)))}</td>
+        <td>{f1(media(audios.map((r) => +r.pedidos_mais || 0)))}</td><td>{f1(100*media(audios.map((r) => Number(r.acertou))))}%</td></tr></tbody></table></div>
+  </section>;
+}
+
+export default function Dashboard({ dados, atual, extras }) {
   const s = useMemo(() => analisar(dados), [dados]);
   const g = s.geral;
   const sig = g.p < 0.05;
@@ -120,13 +168,13 @@ export default function Dashboard({ dados, atual }) {
             </div>
           </section>
           <div className="grade">
-            <section className="painel"><h2>Acerto exato por cenário da rodada</h2><Barras dados={s.comp.porCen} cor={COR.ia} ref={25} /></section>
+            <section className="painel"><h2>Acerto exato por cenário da rodada</h2><Barras dados={s.comp.porCen} cor={COR.ia} linhaReferencia={25} /></section>
             <section className="painel">
               <h2>Quanto marcaram “IA” em cada cenário</h2>
-              <Barras dados={s.comp.tend} cor={COR.sol} ref={false} rotulo="Marcaram IA" />
+              <Barras dados={s.comp.tend} cor={COR.sol} linhaReferencia={false} rotulo="Marcaram IA" />
               <p className="mut">Se acertassem sempre, seria 0%, 50% e 100%.</p>
             </section>
-            <section className="painel"><h2>Acerto exato por tipo (comparação)</h2><Barras dados={s.comp.porTipo.filter((t) => t.n > 0)} cor={COR.real} ref={25} /></section>
+            <section className="painel"><h2>Acerto exato por tipo (comparação)</h2><Barras dados={s.comp.porTipo.filter((t) => t.n > 0)} cor={COR.real} linhaReferencia={25} /></section>
             <section className="painel">
               <h2>Individual × comparação (acerto por item)</h2>
               <Barras dados={[{ nome: 'Individual', media: g.media }, { nome: 'Comparação', media: s.comp.item.media }]} cor={COR.ia} />
@@ -137,7 +185,7 @@ export default function Dashboard({ dados, atual }) {
 
         <div className="grade">
           <section className="painel"><h2>Acerto médio por tipo de conteúdo</h2><Barras dados={tipoDados} cor={COR.ia} /></section>
-          <section className="painel"><h2>Distribuição das notas (nº de pessoas)</h2><Barras dados={s.hist} y="n" dominio={[0, 'auto']} unid="" ref={false} rotulo="Pessoas" cor={COR.ia} /></section>
+          <section className="painel"><h2>Distribuição das notas (nº de pessoas)</h2><Barras dados={s.hist} y="n" dominio={[0, 'auto']} unid="" linhaReferencia={false} rotulo="Pessoas" cor={COR.ia} /></section>
           <section className="painel"><h2>Acerto por faixa etária</h2><Barras dados={s.porFaixa} cor={COR.real} /></section>
           <section className="painel">
             <h2>Acerto por frequência de uso de IA</h2><Barras dados={s.porFreq} cor={COR.ia} />
@@ -164,7 +212,7 @@ export default function Dashboard({ dados, atual }) {
           </section>
           <section className="painel">
             <h2>Para que as pessoas usam IA</h2>
-            <Barras dados={s.usos} y="n" dominio={[0, 'auto']} unid="" ref={false} rotulo="Pessoas" cor={COR.real} />
+            <Barras dados={s.usos} y="n" dominio={[0, 'auto']} unid="" linhaReferencia={false} rotulo="Pessoas" cor={COR.real} />
           </section>
           <section className="painel">
             <h2>Matriz de confusão (todas as respostas)</h2>
@@ -176,12 +224,13 @@ export default function Dashboard({ dados, atual }) {
               </tbody>
             </table>
             <p className="mut">
-              Acerto quando era IA: {f1((100 * ia_ia) / (nIA || NaN))}% · acerto quando era real: {f1((100 * real_real) / (nReal || NaN))}%. Acurácia balanceada: {f1((100 * ia_ia) / (nIA || NaN) / 2 + (100 * real_real) / (nReal || NaN) / 2)}%.
+              Acerto quando era IA: {f1((100 * ia_ia) / (nIA || NaN))}% · acerto quando era real: {f1((100 * real_real) / (nReal || NaN))}%.
               {' '}Chamaram de “IA” {f1((100 * (ia_ia + real_ia)) / (nIA + nReal || NaN))}% das vezes.
             </p>
           </section>
         </div>
       </>)}
+      <DadosEnquadramento extras={extras} />
     </div>
   );
 }
