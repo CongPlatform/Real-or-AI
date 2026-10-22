@@ -207,3 +207,79 @@ details p{line-height:1.65;font-size:.92rem}
 .quiz.quiz-audio .palco{flex:1;min-height:365px}
 .quiz.quiz-audio .carta{height:auto;min-height:365px;max-height:none}
 .quiz.quiz-audio .conteudo{min-height:305px;overflow:visible}
+
+
+/* PATCH: player no mesmo design do REAL OU IA? e pergunta em destaque.
+   Os arquivos de mídia e o gabarito não são alterados. */
+.bloco-pergunta{
+  background:#fff; border:3px solid var(--ink); border-radius:18px;
+  padding:15px 18px 17px; box-shadow:4px 4px 0 var(--ink);
+  display:flex; flex-direction:column; gap:7px; min-width:0; flex-shrink:0;
+}
+.bloco-pergunta-etiqueta{font-size:.72rem;font-weight:900;letter-spacing:.11em;color:var(--ia)}
+.bloco-pergunta .enunciado-teste{
+  color:var(--ink);font-size:clamp(1.27rem,4.5vw,1.78rem);
+  line-height:1.24;text-align:left;margin:0;font-weight:900;overflow-wrap:anywhere;
+}
+.comp>.mut{font-size:.94rem;font-weight:600;line-height:1.5}
+
+/* Nada de tema preto avulso: reutiliza o branco, o roxo e o verde do site. */
+.audio-jogo{
+  color:var(--ink); background:#fff; border:3px solid var(--ink);
+  border-radius:19px; box-shadow:4px 4px 0 var(--ink);
+  padding:clamp(12px,3vw,19px); gap:12px; min-width:0;
+}
+.audio-jogo-etapa{color:var(--ia);font-size:.85rem}
+.audio-jogo-liberado{color:var(--mut);font-size:.82rem}
+.audio-jogo-marcas{height:8px;gap:4px}
+.audio-jogo-marcas span{background:#e8e2fe;border:1px solid #c8bdf8}
+.audio-jogo-marcas span.desbloqueado{background:var(--ia);border-color:var(--ia)}
+.audio-jogo-trilha{height:22px;background:#f3f0ff;border:2px solid var(--ink);border-radius:9px;overflow:hidden}
+.audio-jogo-trilha::after{display:none}
+.audio-jogo-janela{background:#ddd3ff;border-radius:0}
+.audio-jogo-preenchido{background:var(--ia);border-radius:0}
+.audio-jogo-cursor{top:-3px;height:26px;width:3px;background:var(--ink);box-shadow:none}
+.audio-jogo-tempos{color:var(--mut);margin-top:-6px}
+.audio-jogo-controle{min-height:80px}
+.audio-jogo-reiniciar{border:2.5px solid var(--ink);background:var(--sol);color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.audio-jogo-play{background:var(--real);border:3px solid var(--ink);color:var(--ink);box-shadow:4px 4px 0 var(--ink)}
+.audio-jogo-play:active:not(:disabled){transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+.audio-jogo-duracao{display:flex;flex-direction:column;align-items:center;gap:0;color:var(--ink);line-height:1.1}
+.audio-jogo-duracao strong{font-size:1.15rem}
+.audio-jogo-duracao small{font-size:.7rem;white-space:nowrap}
+.audio-jogo-mais{background:var(--ia);color:#fff;border:3px solid var(--ink);border-radius:12px;box-shadow:3px 3px 0 var(--ink);line-height:1.3}
+.audio-jogo-instrucao{color:var(--mut);min-height:unset}
+.audio-jogo .erro{color:#c0262d}
+
+/* Textos não podem ser cortados por altura fixa de tela ou pela carta.
+   Quebras de linha (poemas, diálogos e parágrafos) são preservadas. */
+.m-texto{
+  width:100%;max-width:100%;max-height:none;overflow:visible;white-space:pre-wrap;
+  overflow-wrap:anywhere;word-break:normal;hyphens:auto;
+  font-size:clamp(1.03rem,2.3vw,1.17rem);line-height:1.72;text-align:left;
+  padding:10px 4px;margin:0;color:var(--ink);user-select:text;-webkit-user-select:text;
+  pointer-events:auto;touch-action:pan-y;
+}
+.quiz.quiz-texto{height:auto;min-height:100dvh;overflow:visible}
+.quiz.quiz-texto .palco{flex:initial;min-height:0;display:block;touch-action:pan-y}
+.quiz.quiz-texto .carta{height:auto;max-height:none;min-height:200px;cursor:default}
+.quiz.quiz-texto .conteudo{flex:initial;max-height:none;min-height:0;overflow:visible;align-items:flex-start}
+.quiz.quiz-texto .botoes{position:relative;flex-shrink:0}
+.comp-item:has(.m-texto) .conteudo{min-height:0;max-height:none;overflow:visible;align-items:flex-start}
+.comp-item .m-texto{max-height:none;overflow:visible}
+.comp-item:has(.m-texto){height:auto}
+@media(max-width:420px){
+  .bloco-pergunta{padding:12px 14px 14px}
+  .bloco-pergunta .enunciado-teste{font-size:1.23rem}
+  .quiz.quiz-texto .carta{padding:14px}
+  .audio-jogo{padding:12px;gap:9px}
+}
+
+/* Auditoria administrativa de trechos que já chegaram incompletos ao banco. */
+.revisao-textos-acoes{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0}
+.revisao-textos-acoes label{display:flex;align-items:center;gap:8px;font-weight:700}
+.revisao-textos-acoes input[type=checkbox]{width:auto;accent-color:var(--ia)}
+.revisao-textos-lista{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.revisao-texto-item{border:2px solid var(--ink);background:#f9f8ff;border-radius:12px;padding:12px;margin:0}
+.revisao-texto-item summary{overflow-wrap:anywhere;margin-bottom:8px}
+.revisao-texto-item textarea{margin:8px 0 12px;white-space:pre-wrap;line-height:1.65;resize:vertical}

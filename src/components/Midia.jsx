@@ -1,92 +1,102 @@
 import { useEffect, useRef, useState } from 'react';
+import { etapasDeAudio, tempoLegivel } from '../lib/etapasAudio';
 
-// Escuta de 8 em 8 segundos, inspirada em jogos de identificação musical.
-// Trechos ainda não liberados nunca ficam disponíveis pela barra de tempo.
+// A reprodução parte do início e só pode avançar até a etapa liberada.
+// Cada solicitação desbloqueia uma parcela maior do arquivo, proporcional à duração.
 function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
   const player = useRef(null);
-  const limiteAtual = useRef(8);
-  const anterior = useRef(0);
+  const quadro = useRef(null);
+  const limiteAtual = useRef(0);
+  const tempoAnterior = useRef(0);
   const ouvido = useRef(0);
   const pedidos = useRef(0);
-  const notificouPrimeiro = useRef(false);
-  const quadro = useRef(null);
-  const ultimaAtualizacao = useRef(0);
-  const [duracao, setDuracao] = useState(0);
-  const [liberado, setLiberado] = useState(8);
+  const primeiroConcluido = useRef(false);
+  const ultimaPintura = useRef(0);
+  const [etapas, setEtapas] = useState([]);
+  const [indice, setIndice] = useState(0);
   const [tempo, setTempo] = useState(0);
   const [tocando, setTocando] = useState(false);
   const [trechoConcluido, setTrechoConcluido] = useState(false);
-  const [carregado, setCarregado] = useState(false);
   const [erro, setErro] = useState('');
 
-  const contar = (audio) => {
-    if (!audio) return;
-    const t = audio.currentTime;
-    const delta = t - anterior.current;
-    // Voltar ao início ou saltar no áudio não conta como escuta.
-    if (!audio.paused && delta > 0 && delta < 2.5) ouvido.current += delta;
-    anterior.current = t;
-    onMetricas?.({ segundosReproduzidos: Math.round(ouvido.current * 10) / 10, pedidosMais: pedidos.current });
+  const duracao = etapas.at(-1) || 0;
+  const liberado = etapas[indice] || 0;
+  const proximaEtapa = etapas[indice + 1];
+  const podeMais = trechoConcluido && proximaEtapa !== undefined;
+  const progresso = duracao ? Math.min(100, tempo / duracao * 100) : 0;
+  const limitePercentual = duracao ? Math.min(100, liberado / duracao * 100) : 0;
+  const notificar = () => onMetricas?.({
+    segundosReproduzidos: Math.round(ouvido.current * 10) / 10,
+    pedidosMais: pedidos.current,
+  });
+
+  const contar = (a) => {
+    if (!a) return;
+    const delta = a.currentTime - tempoAnterior.current;
+    // Mudanças por seek, saltos ou buffering não são tratadas como tempo ouvido.
+    if (delta > 0 && delta < 1.6) ouvido.current += delta;
+    tempoAnterior.current = a.currentTime;
+    notificar();
   };
 
-  const limite = () => Math.min(limiteAtual.current, Number.isFinite(duracao) && duracao > 0 ? duracao : limiteAtual.current);
-
-  const pararNoLimite = (audio) => {
-    if (!audio || audio.currentTime < limite() - 0.045) return false;
-    audio.pause();
-    if (audio.currentTime > limite()) audio.currentTime = limite();
-    anterior.current = audio.currentTime;
-    setTempo(audio.currentTime);
+  const pararNoLimite = (a) => {
+    const fim = limiteAtual.current;
+    if (!a || !fim || a.currentTime < fim - 0.035) return false;
+    contar(a);
+    a.pause();
+    if (a.currentTime > fim) a.currentTime = fim;
+    tempoAnterior.current = a.currentTime;
+    setTempo(a.currentTime);
     setTrechoConcluido(true);
-    const primeiro = Math.min(8, duracao || 8);
-    if (!notificouPrimeiro.current && audio.currentTime >= primeiro - 0.15) {
-      notificouPrimeiro.current = true;
+    if (!primeiroConcluido.current) {
+      primeiroConcluido.current = true;
       onPrimeiroTrecho?.();
     }
     return true;
   };
 
-  // requestAnimationFrame impede que oscilação do evento timeupdate libere muito além dos 8 s.
-  const verificar = (agora) => {
-    const audio = player.current;
-    if (!audio || audio.paused) return;
-    if (pararNoLimite(audio)) return;
-    if (agora - ultimaAtualizacao.current > 90) {
-      ultimaAtualizacao.current = agora;
-      setTempo(audio.currentTime);
+  const verificar = (instante) => {
+    const a = player.current;
+    if (!a || a.paused) return;
+    if (pararNoLimite(a)) return;
+    if (instante - ultimaPintura.current > 80) {
+      ultimaPintura.current = instante;
+      setTempo(a.currentTime);
     }
     quadro.current = requestAnimationFrame(verificar);
   };
 
-  const iniciarReproducao = async () => {
-    const audio = player.current;
-    if (!audio || !carregado) return;
-    if (!audio.paused) { audio.pause(); return; }
-    // O botão principal repete do início se o trecho disponível já terminou.
-    if (audio.currentTime >= limite() - .10) {
-      audio.currentTime = 0;
-      anterior.current = 0;
-      setTrechoConcluido(false);
+  async function reproduzir() {
+    const a = player.current;
+    if (!a || !duracao) return;
+    if (!a.paused) { a.pause(); return; }
+    if (a.currentTime >= limiteAtual.current - 0.07) {
+      a.currentTime = 0;
+      tempoAnterior.current = 0;
       setTempo(0);
+      setTrechoConcluido(false);
     }
-    try { await audio.play(); setErro(''); }
-    catch { setErro('Não foi possível reproduzir este áudio. Tente novamente.'); }
-  };
+    try { await a.play(); setErro(''); }
+    catch { setErro('Não foi possível reproduzir. Tente novamente.'); }
+  }
 
-  const ouvirMais = async () => {
-    const audio = player.current;
-    if (!audio || !trechoConcluido) return;
-    const novo = Math.min(liberado + 8, duracao || liberado + 8);
-    if (novo <= liberado + .05) return;
+  async function ouvirMais() {
+    const a = player.current;
+    if (!a || !podeMais) return;
+    // Como nos jogos de adivinhar músicas, cada etapa recomeça do início.
+    // Os segundos reproduzidos contabilizam também o que foi escutado novamente.
+    a.pause();
+    a.currentTime = 0;
+    tempoAnterior.current = 0;
+    limiteAtual.current = proximaEtapa;
     pedidos.current += 1;
-    limiteAtual.current = novo;
-    setLiberado(novo);
+    setTempo(0);
+    setIndice((atual) => atual + 1);
     setTrechoConcluido(false);
-    onMetricas?.({ segundosReproduzidos: Math.round(ouvido.current * 10) / 10, pedidosMais: pedidos.current });
-    // Continua exatamente de onde o trecho anterior parou.
-    try { await audio.play(); setErro(''); }
-    catch { setErro('Não foi possível continuar a reprodução. Use o botão central.'); }
-  };
+    notificar();
+    try { await a.play(); setErro(''); }
+    catch { setErro('Não foi possível continuar. Use o botão de reprodução.'); }
+  }
 
   useEffect(() => {
     onMetricas?.({ segundosReproduzidos: 0, pedidosMais: 0 });
@@ -96,19 +106,18 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
     };
   }, [item.id]);
 
-  const disponivel = Math.min(liberado, duracao || liberado);
-  const totalSegmentos = Math.max(1, Math.min(12, Math.ceil((duracao || 40) / 8)));
-  const progresso = duracao ? Math.min(100, tempo / duracao * 100) : 0;
-  const limitePercentual = duracao ? Math.min(100, disponivel / duracao * 100) : 20;
-  const podeMais = trechoConcluido && duracao > liberado + .1;
-  const horas = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-
   return <div className="audio-jogo" onPointerDown={(e) => e.stopPropagation()}>
     <audio ref={player} src={item.url} preload="metadata"
       onLoadedMetadata={(e) => {
         const d = e.currentTarget.duration;
-        if (Number.isFinite(d) && d > 0) setDuracao(d);
-        setCarregado(true);
+        if (!Number.isFinite(d) || d <= 0) {
+          setErro('Este áudio não informa sua duração. Converta o arquivo para MP3 e tente novamente.');
+          return;
+        }
+        const limites = etapasDeAudio(d);
+        limiteAtual.current = limites[0];
+        setEtapas(limites);
+        setIndice(0);
         onCarregado?.();
       }}
       onPlay={() => {
@@ -116,45 +125,64 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
         if (quadro.current !== null) cancelAnimationFrame(quadro.current);
         quadro.current = requestAnimationFrame(verificar);
       }}
-      onPause={(e) => { contar(e.currentTarget); setTocando(false); if (quadro.current !== null) cancelAnimationFrame(quadro.current); }}
+      onPause={(e) => {
+        contar(e.currentTarget);
+        setTocando(false);
+        if (quadro.current !== null) cancelAnimationFrame(quadro.current);
+      }}
       onTimeUpdate={(e) => { contar(e.currentTarget); pararNoLimite(e.currentTarget); }}
       onSeeking={(e) => {
-        const audio = e.currentTarget;
-        if (audio.currentTime > limite()) audio.currentTime = Math.max(0, limite() - .04);
-        anterior.current = audio.currentTime;
+        const a = e.currentTarget;
+        if (limiteAtual.current > 0 && a.currentTime > limiteAtual.current) {
+          a.currentTime = Math.max(0, limiteAtual.current - 0.05);
+        }
+        tempoAnterior.current = a.currentTime;
       }}
-      onEnded={(e) => { contar(e.currentTarget); setTocando(false); pararNoLimite(e.currentTarget); }}
-      onError={() => setErro('Não foi possível carregar este áudio. Verifique a conexão.')} />
+      onEnded={(e) => {
+        contar(e.currentTarget);
+        setTocando(false);
+        pararNoLimite(e.currentTarget);
+      }}
+      onError={() => setErro('Falha no carregamento do áudio. Verifique a conexão ou o arquivo.')} />
 
     <div className="audio-jogo-topo">
-      <span className="audio-jogo-etapa">{trechoConcluido ? 'Trecho concluído' : `Trecho ${Math.max(1, Math.ceil(liberado / 8))}`}</span>
-      <span className="audio-jogo-liberado">{Math.round(disponivel)}s liberados</span>
+      <span className="audio-jogo-etapa">Escuta {Math.min(indice + 1, etapas.length || 1)} de {etapas.length || '…'}</span>
+      <span className="audio-jogo-liberado">{duracao ? `${tempoLegivel(liberado)} disponíveis` : 'Preparando…'}</span>
     </div>
-    <div className="audio-jogo-marcas" aria-hidden="true">
-      {Array.from({ length: totalSegmentos }, (_, n) => <span key={n} className={n / totalSegmentos * 100 < limitePercentual ? 'desbloqueado' : ''} />)}
+    <div className="audio-jogo-marcas" aria-label="Etapas de escuta">
+      {etapas.map((t, n) => <span key={n} className={n <= indice ? 'desbloqueado' : ''}
+        title={`Até ${tempoLegivel(t)}`} />)}
     </div>
-    <div className="audio-jogo-trilha" role="progressbar" aria-label="Progresso de reprodução do áudio"
-      aria-valuenow={Math.floor(tempo)} aria-valuemin={0} aria-valuemax={Math.ceil(duracao || liberado)}>
+    <div className="audio-jogo-trilha" role="progressbar" aria-label="Trecho reproduzido"
+      aria-valuenow={Math.min(100, Math.round(progresso))} aria-valuemin={0} aria-valuemax={100}>
       <div className="audio-jogo-janela" style={{ width: `${limitePercentual}%` }} />
       <div className="audio-jogo-preenchido" style={{ width: `${progresso}%` }} />
       <div className="audio-jogo-cursor" style={{ left: `${progresso}%` }} />
     </div>
-    <div className="audio-jogo-tempos"><span>{horas(tempo)}</span><span>{duracao ? horas(duracao) : 'Carregando…'}</span></div>
+    <div className="audio-jogo-tempos"><span>{tempoLegivel(tempo)}</span><span>{tempoLegivel(duracao)}</span></div>
 
     <div className="audio-jogo-controle">
       <button type="button" className="audio-jogo-reiniciar" onClick={() => {
         const a = player.current;
-        if (a) { a.pause(); a.currentTime = 0; anterior.current = 0; setTempo(0); setTrechoConcluido(false); }
-      }} disabled={!carregado} aria-label="Voltar ao início" title="Voltar ao início">↺</button>
-      <button type="button" className="audio-jogo-play" onClick={iniciarReproducao} disabled={!carregado}
+        if (a) {
+          a.pause(); a.currentTime = 0; tempoAnterior.current = 0;
+          setTempo(0); setTrechoConcluido(false);
+        }
+      }} disabled={!duracao} aria-label="Repetir desde o início" title="Repetir desde o início">↺</button>
+      <button type="button" className="audio-jogo-play" onClick={reproduzir} disabled={!duracao}
         aria-label={tocando ? 'Pausar áudio' : 'Reproduzir áudio'}>
         {tocando ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zm6 0h4v14h-4z" /></svg>
           : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8z" /></svg>}
       </button>
-      <span className="audio-jogo-duracao">{Math.round(disponivel)}s</span>
+      <span className="audio-jogo-duracao"><strong>{Math.round(limitePercentual)}%</strong><small> liberado</small></span>
     </div>
-    {podeMais ? <button type="button" className="audio-jogo-mais" onClick={ouvirMais}>+ Ouvir mais 8 segundos <span aria-hidden="true">→</span></button>
-      : <p className="audio-jogo-instrucao">{trechoConcluido ? 'Você já pode classificar ou ouvir novamente.' : tocando ? 'Escutando…' : 'Toque em reproduzir para ouvir o trecho.'}</p>}
+    {podeMais ? <button type="button" className="audio-jogo-mais" onClick={ouvirMais}>
+      Ouvir mais · {tempoLegivel(proximaEtapa)} <span aria-hidden="true">→</span>
+    </button> : <p className="audio-jogo-instrucao">{
+      trechoConcluido ? 'Você pode responder ou repetir o trecho.' :
+        tocando ? 'Reproduzindo o trecho disponível…' :
+          'Ouça um trecho, depois responda ou peça mais tempo.'
+    }</p>}
     {erro && <p role="alert" className="erro">{erro}</p>}
   </div>;
 }
@@ -178,7 +206,7 @@ export default function Midia({ item, progressivo = false, onMetricas, onPrimeir
       onLoad={() => { setCarregado(true); onCarregado?.(); }}
       onError={() => setFalha(true)} style={{ display: carregado ? 'block' : 'none' }}/>
   </div>;
-  if (item.tipo === 'texto') return <p className="m-texto">{item.texto}</p>;
+  if (item.tipo === 'texto') return <article className="m-texto" lang="pt-BR" data-no-swipe="true">{item.texto || ''}</article>;
   if (item.tipo === 'audio' && progressivo) return <AudioProgressivo item={item} onMetricas={onMetricas} onPrimeiroTrecho={onPrimeiroTrecho} onCarregado={onCarregado} />;
   const props = {
     ref, src: item.url, playsInline: true, preload: 'metadata',

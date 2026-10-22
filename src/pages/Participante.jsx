@@ -103,6 +103,14 @@ function ParteIntro({ titulo, texto, onOk }) {
 const NOMES = { imagem: 'imagem', texto: 'texto', audio: 'áudio', video: 'vídeo' };
 const NOMES_PLURAL = { imagem: 'imagens', texto: 'textos', audio: 'áudios', video: 'vídeos' };
 
+// A resposta armazenada continua sendo booleano 'é IA?', qualquer que seja o enunciado.
+// Mostrar Sim/Não apenas quando a própria pergunta é fechada.
+function rotulosDaPergunta(enquadramento) {
+  if (enquadramento === 'ia') return { ia: 'Sim', humano: 'Não' };
+  if (enquadramento === 'humano') return { ia: 'Não', humano: 'Sim' };
+  return { ia: 'IA', humano: 'Humano' };
+}
+
 function enunciado(individual, origem, tipo) {
   const nome = NOMES[tipo] || 'conteúdo';
   const plu = NOMES_PLURAL[tipo] || 'conteúdos';
@@ -121,13 +129,14 @@ function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
   const t0 = useRef(performance.now());
   const itens = rodada.conteudos;
   const pronto = itens.every((c) => m[c.id] !== undefined);
+  const rotulos = rotulosDaPergunta(rodada.enquadramento);
   return (
     <div className="comp">
       <header className="topo">
         <div className="barra"><i style={{ width: `${(n / total) * 100}%` }} /></div>
         <span>{n + 1}/{total}</span>
       </header>
-      <h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2>
+      <div className="bloco-pergunta"><span className="bloco-pergunta-etiqueta">COMPARE E DECIDA</span><h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2></div>
       <p className="mut">Avalie cada conteúdo separadamente. Ambos podem ter a mesma origem ou origens diferentes.</p>
       <div className="comp-grade">
         {itens.map((c, k) => (
@@ -136,9 +145,9 @@ function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
             <div className="conteudo"><Midia item={c} /></div>
             <div className="escolha">
               <button className={'op ia' + (m[c.id] === true ? ' on' : '')}
-                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: true }))}>IA</button>
+                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: true }))}>{rotulos.ia}</button>
               <button className={'op real' + (m[c.id] === false ? ' on' : '')}
-                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: false }))}>Humano</button>
+                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: false }))}>{rotulos.humano}</button>
             </div>
           </div>
         ))}
@@ -304,7 +313,7 @@ export default function Participante() {
   if (etapa === 'carregando') return <div className="tela"><p className="mut">Carregando…</p></div>;
   if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} />;
   if (etapa === 'p1_intro') return <ParteIntro titulo="Parte 1: um conteúdo por vez" onOk={() => setEtapa('p1')}
-      texto={['Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, escute primeiro um trecho de até 8 segundos; depois, responda ou peça para ouvir mais.']} />;
+      texto={['Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
   if (etapa === 'p2_intro') return <ParteIntro titulo="Parte 2: comparações" onOk={() => setEtapa('p2')}
       texto={['Agora aparecerão dois conteúdos. Classifique cada um independentemente: ambos podem ser reais, ambos podem ser IA, ou podem ser diferentes.', 'Não é preciso escolher obrigatoriamente um de cada.']} />;
   if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 24} />;
@@ -314,13 +323,13 @@ export default function Participante() {
       onConfirm={(m, ms) => decidirComp(c, m, ms)} busy={busy} erro={erro} />;
   }
   const c = fila[i];
-  return <div className={"tela quiz" + (c.tipo === "audio" ? " quiz-audio" : "")}>
+  return <div className={"tela quiz" + (c.tipo === "audio" ? " quiz-audio" : c.tipo === "texto" ? " quiz-texto" : "")}>
     <header className="topo">
       <div className="barra"><i style={{ width: `${((jaRespondidas + i) / 30) * 100}%` }} /></div>
       <span>{jaRespondidas + i + 1}/30 decisões</span>
     </header>
     <SwipeCard key={c.id} item={c} primeiro={i === 0}
-      pergunta={enunciado(true, c.enquadramento, c.tipo)} busy={busy} erro={erro}
+      pergunta={enunciado(true, c.enquadramento, c.tipo)} enquadramento={c.enquadramento} busy={busy} erro={erro}
       onDecide={(ia, ms, met) => decidir(c, ia, ms, met)} onConteudoCarregado={() => anteciparProximasImagens(fila, comps, i + 1)} />
   </div>;
 }

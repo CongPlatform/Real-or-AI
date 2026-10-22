@@ -5,7 +5,7 @@ import { TIPOS } from '../lib/opcoes';
 const LIMITE = 90;
 
 // Esquerda = IA; direita = humano, independentemente do enunciado.
-export default function SwipeCard({ item, onDecide, primeiro, pergunta, busy, erro, onConteudoCarregado }) {
+export default function SwipeCard({ item, onDecide, primeiro, pergunta, enquadramento = 'neutro', busy, erro, onConteudoCarregado }) {
   const [dx, setDx] = useState(0);
   const [saindo, setSaindo] = useState(0);
   const [arr, setArr] = useState(false);
@@ -14,6 +14,11 @@ export default function SwipeCard({ item, onDecide, primeiro, pergunta, busy, er
   const ini = useRef(null);
   const metricas = useRef({ segundosReproduzidos: 0, pedidosMais: 0 });
   const t0 = useRef(performance.now());
+  const rotulos = enquadramento === 'ia'
+    ? { ia: 'Sim', humano: 'Não' }
+    : enquadramento === 'humano'
+      ? { ia: 'Não', humano: 'Sim' }
+      : { ia: 'IA', humano: 'Humano' };
 
   useEffect(() => { t0.current = performance.now(); }, [item.id]);
 
@@ -34,7 +39,7 @@ export default function SwipeCard({ item, onDecide, primeiro, pergunta, busy, er
     return () => removeEventListener('keydown', k);
   });
 
-  const down = (e) => { if (busy || !audioPronto || !conteudoPronto) return; ini.current = e.clientX; setArr(true); e.currentTarget.setPointerCapture(e.pointerId); };
+  const down = (e) => { if (e.target.closest?.('[data-no-swipe], button, input, audio, video')) return; if (busy || !audioPronto || !conteudoPronto) return; ini.current = e.clientX; setArr(true); e.currentTarget.setPointerCapture(e.pointerId); };
   const move = (e) => { if (ini.current !== null) setDx(e.clientX - ini.current); };
   const up = () => {
     if (ini.current === null) return;
@@ -46,7 +51,7 @@ export default function SwipeCard({ item, onDecide, primeiro, pergunta, busy, er
   const forca = Math.min(Math.abs(x) / LIMITE, 1);
 
   return <>
-    <h2 className="enunciado-teste">{pergunta}</h2>
+    <div className="bloco-pergunta"><span className="bloco-pergunta-etiqueta">OBSERVE E DECIDA</span><h2 className="enunciado-teste">{pergunta}</h2></div>
     <div className="palco">
       <div className="carta" style={{ transform: `translateX(${x}px) rotate(${x / 18}deg)`,
         transition: arr ? 'none' : 'transform .22s ease',
@@ -56,19 +61,19 @@ export default function SwipeCard({ item, onDecide, primeiro, pergunta, busy, er
         <div className="conteudo"><Midia item={item} progressivo={item.tipo === 'audio'}
           onMetricas={(m) => { metricas.current = m; }} onPrimeiroTrecho={() => setAudioPronto(true)}
           onCarregado={() => { t0.current = performance.now(); setConteudoPronto(true); onConteudoCarregado?.(); }} /></div>
-        <b className="selo real" style={{ opacity: x > 0 ? forca : 0 }}>Humano</b>
-        <b className="selo ia" style={{ opacity: x < 0 ? forca : 0 }}>IA</b>
+        <b className="selo real" style={{ opacity: x > 0 ? forca : 0 }}>{rotulos.humano}</b>
+        <b className="selo ia" style={{ opacity: x < 0 ? forca : 0 }}>{rotulos.ia}</b>
       </div>
     </div>
-    {primeiro && <p className="dica">Arraste: esquerda = IA, direita = humano. Ou use os botões.</p>}
+    {primeiro && <p className="dica">Arraste conforme as opções abaixo ou toque em um dos botões.</p>}
     {!conteudoPronto && <p className="dica">Preparando conteúdo…</p>}
     {conteudoPronto && !audioPronto && <p className="dica">Escute o primeiro trecho de áudio antes de responder.</p>}
     {erro && <p className="erro" role="alert">{erro}</p>}
     <div className="botoes">
       <button type="button" className="b ia" disabled={busy || !audioPronto || !conteudoPronto || !!saindo}
-        onClick={() => decidir(-1)}>Feito por IA</button>
+        onClick={() => decidir(-1)}>{rotulos.ia}</button>
       <button type="button" className="b real" disabled={busy || !audioPronto || !conteudoPronto || !!saindo}
-        onClick={() => decidir(1)}>Feito por humano</button>
+        onClick={() => decidir(1)}>{rotulos.humano}</button>
     </div>
   </>;
 }
