@@ -283,3 +283,33 @@ details p{line-height:1.65;font-size:.92rem}
 .revisao-texto-item{border:2px solid var(--ink);background:#f9f8ff;border-radius:12px;padding:12px;margin:0}
 .revisao-texto-item summary{overflow-wrap:anywhere;margin-bottom:8px}
 .revisao-texto-item textarea{margin:8px 0 12px;white-space:pre-wrap;line-height:1.65;resize:vertical}
+
+/* PATCH 2026-10-22 — um único cartão para áudio.
+   O cartão externo .carta já fornece fundo, borda e sombra.
+   O player passa a ser apenas seu conteúdo interno, sem outro painel. */
+.quiz.quiz-audio .conteudo {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0 0;
+}
+.quiz.quiz-audio .audio-jogo {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--ink);
+  gap: clamp(10px, 2.5vw, 15px);
+}
+.quiz.quiz-audio .carta {
+  gap: clamp(12px, 2.8vw, 18px);
+  padding: clamp(16px, 3.5vw, 26px);
+}
+/* Telas menores: aproveita o espaço disponível sem esconder os controles. */
+@media (max-width: 420px) {
+  .quiz.quiz-audio .carta { padding: 15px; }
+  .quiz.quiz-audio .audio-jogo { gap: 10px; }
+}
