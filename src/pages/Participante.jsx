@@ -4,6 +4,7 @@ import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
 import { prepararImagensDaSessao, anteciparProximasImagens } from '../lib/precarregarMidias';
+import { prepararProximoAudio } from '../lib/precarregarAudios';
 
 const LS = 'realia_v3';
 const ler = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
@@ -49,6 +50,7 @@ function Wizard({ onFim, busy, erro }) {
           </div>
           <h1>Real<br />ou IA?</h1>
           <p>Pesquisa de matemática avançada. Primeiro 6 perguntas rápidas, depois você decide o que foi feito por IA. São 30 decisões; o teste é anônimo e inclui áudios com escuta por trechos.</p>
+          <p className="definicao-origem"><strong>O que conta como IA?</strong> Classificamos pela origem do conteúdo final. Se as imagens de um vídeo foram geradas por IA, ele será considerado IA mesmo com roteiro humano. Para áudio, imagem e texto vale a mesma regra: o que importa é o material final apresentado, e não apenas a ideia, o roteiro ou o comando usado para produzi-lo.</p>
           <button className="cta" style={{ alignSelf: 'stretch' }} onClick={() => setI(0)}>Começar</button>
         </div>
       </div>
@@ -98,6 +100,18 @@ function ParteIntro({ titulo, texto, onOk }) {
       </div>
     </div>
   );
+}
+
+async function adicionarGanhosDeAudio(roteiro) {
+  const ids = [...new Set(roteiro.flatMap(r => r.kind === 'individual' ?
+    (r.tipo === 'audio' ? [r.id] : []) :
+    (r.conteudos || []).filter(c => c.tipo === 'audio').map(c => c.id)))];
+  if (!ids.length) return roteiro;
+  const { data, error } = await supabase.from('conteudos').select('id,audio_gain_db').in('id', ids);
+  if (error) { console.warn('Ganho dos áudios indisponível:', error.message); return roteiro; }
+  const ganhos = new Map((data || []).map(r => [r.id, Number(r.audio_gain_db) || 0]));
+  return roteiro.map(r => r.kind === 'individual' ? { ...r, audio_gain_db: ganhos.get(r.id) || 0 } :
+    { ...r, conteudos: (r.conteudos || []).map(c => ({ ...c, audio_gain_db: ganhos.get(c.id) || 0 })) });
 }
 
 const NOMES = { imagem: 'imagem', texto: 'texto', audio: 'áudio', video: 'vídeo' };
@@ -236,6 +250,7 @@ export default function Participante() {
     // O roteiro só é conhecido depois do sorteio no servidor.
     // Começa a baixar as imagens dessa sessão antes de abrir a primeira pergunta.
     prepararImagensDaSessao(pendentes, paresPendentes);
+    prepararProximoAudio(pendentes, 0);
     setI(0); setJ(0);
     setEtapa(pendentes.length ? (comIntro ? 'p1_intro' : 'p1') :
       paresPendentes.length ? (comIntro ? 'p2_intro' : 'p2') : 'fim');
@@ -250,7 +265,7 @@ export default function Participante() {
         if (s.pid) {
           const { data, error } = await supabase.rpc('obter_teste_v3', { p_participante: s.pid });
           if (error) throw error;
-          instalarRoteiro(data);
+          instalarRoteiro(await adicionarGanhosDeAudio(data));
           return;
         }
       } catch (e) { setErro(e.message || 'Erro ao recuperar seu teste.'); }
@@ -260,7 +275,10 @@ export default function Participante() {
 
   // Ao avançar, dá prioridade às próximas imagens ainda não visitadas.
   useEffect(() => {
-    if (etapa === 'p1') anteciparProximasImagens(fila, comps, i + 1);
+    if (etapa === 'p1') {
+      anteciparProximasImagens(fila, comps, i + 1);
+      prepararProximoAudio(fila, i + 1);
+    }
   }, [etapa, fila, comps, i]);
 
   async function iniciar(f) {
@@ -280,7 +298,7 @@ export default function Participante() {
       if (erroRoteiro) throw erroRoteiro;
       salvar({ pid: participante, concluido: false, resultado: null });
       setPid(participante);
-      instalarRoteiro(roteiro, true);
+      instalarRoteiro(await adicionarGanhosDeAudio(roteiro), true);
     } catch (e) {
       setErro(e.message || 'Erro ao iniciar. Verifique o SQL e a quantidade de conteúdos cadastrados.');
     } finally { setBusy(false); }
@@ -288,10 +306,13 @@ export default function Participante() {
 
   async function decidir(c, ia, ms, met = {}) {
     setBusy(true); setErro('');
-    const { error } = await supabase.rpc('enviar_resposta_v3', {
+    const { error } = await supabase.rpc('enviar_resposta_v4', {
       p_participante: pid, p_conteudo: c.id, p_resposta_ia: ia, p_tempo_ms: ms,
       p_segundos_reproduzidos: met.segundosReproduzidos || 0,
       p_pedidos_mais: met.pedidosMais || 0,
+      p_duracao_audio_s: met.duracaoAudioS || 0,
+      p_trecho_liberado_s: met.trechoLiberadoS || 0,
+      p_repeticoes_audio: met.repeticoesAudio || 0,
     });
     setBusy(false);
     if (error) { setErro('Não conseguimos salvar esta resposta. ' + error.message); throw error; }
@@ -313,7 +334,7 @@ export default function Participante() {
   if (etapa === 'carregando') return <div className="tela"><p className="mut">Carregando…</p></div>;
   if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} />;
   if (etapa === 'p1_intro') return <ParteIntro titulo="Parte 1: um conteúdo por vez" onOk={() => setEtapa('p1')}
-      texto={['Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
+      texto={['A classificação considera o conteúdo final apresentado. Se a imagem ou o som foi gerado por IA, a peça é IA, mesmo que a ideia, o roteiro ou o prompt sejam humanos.', 'Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
   if (etapa === 'p2_intro') return <ParteIntro titulo="Parte 2: comparações" onOk={() => setEtapa('p2')}
       texto={['Agora aparecerão dois conteúdos. Classifique cada um independentemente: ambos podem ser reais, ambos podem ser IA, ou podem ser diferentes.', 'Não é preciso escolher obrigatoriamente um de cada.']} />;
   if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 24} />;

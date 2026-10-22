@@ -1,15 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { etapasDeAudio, tempoLegivel } from '../lib/etapasAudio';
 
+// Aumenta apenas áudios medidos e aprovados pelo administrador.
+// GainNode permite superar volume=1, preservando arquivo original.
+function useGanhoAudio(elemento, item) {
+  const contexto = useRef(null);
+  useEffect(() => {
+    if (item.tipo !== 'audio' || !(Number(item.audio_gain_db) > 0)) return;
+    const a = elemento.current;
+    const API = window.AudioContext || window.webkitAudioContext;
+    if (!API || !a) return;
+    try {
+      const ctx = new API();
+      const fonte = ctx.createMediaElementSource(a);
+      const ganho = ctx.createGain();
+      ganho.gain.value = 10 ** (Math.min(12, Number(item.audio_gain_db)) / 20);
+      fonte.connect(ganho); ganho.connect(ctx.destination);
+      contexto.current = ctx;
+    } catch (e) { console.warn('Ganho de áudio indisponível:', e); }
+    return () => { contexto.current?.close().catch(()=>{}); contexto.current = null; };
+  }, [item.id, item.audio_gain_db, item.tipo]);
+  return async () => { if (contexto.current?.state === 'suspended') await contexto.current.resume(); };
+}
+
 // A reprodução parte do início e só pode avançar até a etapa liberada.
 // Cada solicitação desbloqueia uma parcela maior do arquivo, proporcional à duração.
 function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
   const player = useRef(null);
+  const liberarGanho = useGanhoAudio(player, item);
   const quadro = useRef(null);
   const limiteAtual = useRef(0);
   const tempoAnterior = useRef(0);
   const ouvido = useRef(0);
   const pedidos = useRef(0);
+  const repeticoes = useRef(0);
+  const duracaoRegistrada = useRef(0);
   const primeiroConcluido = useRef(false);
   const ultimaPintura = useRef(0);
   const [etapas, setEtapas] = useState([]);
@@ -28,6 +53,9 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
   const notificar = () => onMetricas?.({
     segundosReproduzidos: Math.round(ouvido.current * 10) / 10,
     pedidosMais: pedidos.current,
+    duracaoAudioS: duracaoRegistrada.current,
+    trechoLiberadoS: limiteAtual.current,
+    repeticoesAudio: repeticoes.current,
   });
 
   const contar = (a) => {
@@ -76,7 +104,7 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
       setTempo(0);
       setTrechoConcluido(false);
     }
-    try { await a.play(); setErro(''); }
+    try { await liberarGanho(); await a.play(); setErro(''); }
     catch { setErro('Não foi possível reproduzir. Tente novamente.'); }
   }
 
@@ -94,7 +122,7 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
     setIndice((atual) => atual + 1);
     setTrechoConcluido(false);
     notificar();
-    try { await a.play(); setErro(''); }
+    try { await liberarGanho(); await a.play(); setErro(''); }
     catch { setErro('Não foi possível continuar. Use o botão de reprodução.'); }
   }
 
@@ -107,17 +135,19 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
   }, [item.id]);
 
   return <div className="audio-jogo" onPointerDown={(e) => e.stopPropagation()}>
-    <audio ref={player} src={item.url} preload="metadata"
+    <audio ref={player} src={item.url} preload="auto" crossOrigin={Number(item.audio_gain_db)>0?"anonymous":undefined}
       onLoadedMetadata={(e) => {
         const d = e.currentTarget.duration;
         if (!Number.isFinite(d) || d <= 0) {
           setErro('Este áudio não informa sua duração. Converta o arquivo para MP3 e tente novamente.');
           return;
         }
+        duracaoRegistrada.current = d;
         const limites = etapasDeAudio(d);
         limiteAtual.current = limites[0];
         setEtapas(limites);
         setIndice(0);
+        notificar();
         onCarregado?.();
       }}
       onPlay={() => {
@@ -167,6 +197,8 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
         if (a) {
           a.pause(); a.currentTime = 0; tempoAnterior.current = 0;
           setTempo(0); setTrechoConcluido(false);
+          repeticoes.current += 1;
+          notificar();
         }
       }} disabled={!duracao} aria-label="Repetir desde o início" title="Repetir desde o início">↺</button>
       <button type="button" className="audio-jogo-play" onClick={reproduzir} disabled={!duracao}
@@ -189,10 +221,11 @@ function AudioProgressivo({ item, onMetricas, onPrimeiroTrecho, onCarregado }) {
 
 export default function Midia({ item, progressivo = false, onMetricas, onPrimeiroTrecho, onCarregado }) {
   const ref = useRef(null);
+  const liberarGanho = useGanhoAudio(ref, item);
   const [tocando, setTocando] = useState(false);
   const [carregado, setCarregado] = useState(false);
   const [falha, setFalha] = useState(false);
-  const alterna = () => { const m = ref.current; if (m) (m.paused ? m.play().catch(() => setFalha(true)) : m.pause()); };
+  const alterna = async () => { const m=ref.current; if (!m)return; if (!m.paused) return m.pause(); try { await liberarGanho(); await m.play(); } catch { setFalha(true); } };
   const botao = (
     <button type="button" className="tocar" onPointerDown={(e) => e.stopPropagation()} onClick={alterna}>
       {tocando ? 'Pausar' : 'Tocar'}
@@ -209,7 +242,8 @@ export default function Midia({ item, progressivo = false, onMetricas, onPrimeir
   if (item.tipo === 'texto') return <article className="m-texto" lang="pt-BR" data-no-swipe="true">{item.texto || ''}</article>;
   if (item.tipo === 'audio' && progressivo) return <AudioProgressivo item={item} onMetricas={onMetricas} onPrimeiroTrecho={onPrimeiroTrecho} onCarregado={onCarregado} />;
   const props = {
-    ref, src: item.url, playsInline: true, preload: 'metadata',
+    ref, src: item.url, playsInline: true, preload: item.tipo==='audio' ? 'auto' : 'metadata',
+    crossOrigin: item.tipo==='audio' && Number(item.audio_gain_db)>0 ? 'anonymous' : undefined,
     onLoadedMetadata: () => onCarregado?.(),
     onPlay: () => setTocando(true), onPause: () => setTocando(false), onEnded: () => setTocando(false),
   };

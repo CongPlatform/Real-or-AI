@@ -313,3 +313,29 @@ details p{line-height:1.65;font-size:.92rem}
   .quiz.quiz-audio .carta { padding: 15px; }
   .quiz.quiz-audio .audio-jogo { gap: 10px; }
 }
+/* Painel de análise v4 — mantém identidade visual e melhora leitura mobile. */
+.dash-v4 .kpi-v4{min-height:128px;gap:7px}
+.dash-v4 .kpi-v4 strong{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.45rem,2.4vw,2rem);line-height:1.13;overflow-wrap:anywhere}
+.dash-v4 .kpi-v4 span{font-weight:800;font-size:.85rem}
+.dash-v4 .kpi-v4 small{font-size:.75rem;line-height:1.4}
+.auditoria-filtros{border:2px solid var(--ink);border-radius:12px;background:#fff;padding:12px 15px;display:flex;gap:8px;flex-direction:column}
+.auditoria-filtros label{font-weight:750;display:flex;align-items:center;gap:10px;cursor:pointer}
+.auditoria-filtros input{accent-color:var(--ia);width:20px;height:20px}
+.auditoria-filtros small,.metodo-v4{color:var(--mut);line-height:1.55}
+.auditoria-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:15px 0}
+.auditoria-grid>div{display:flex;flex-direction:column;gap:5px;min-width:0;background:#f5f2ff;border:2px solid #d9d0f8;border-radius:10px;padding:12px}
+.auditoria-grid strong{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.25rem,2.4vw,1.7rem);color:var(--ink)}
+.auditoria-grid span{font-size:.8rem;line-height:1.3;font-weight:700}
+.dash-v4 .painel h3{margin:20px 0 12px}
+.dash-v4 .painel .mut{line-height:1.5}
+.dash-v4 .painel .rolagem{margin-top:12px}
+.dash-v4 .painel th,.dash-v4 .painel td{white-space:normal;min-width:70px}
+.dash-v4 .painel th:first-child,.dash-v4 .painel td:first-child{min-width:112px}
+.dash-v4 .painel table{min-width:560px}
+.dash-v4 .painel table.conf{min-width:360px;max-width:680px}
+.dash-v4 .acoes.exportacoes-v4{justify-content:flex-start;gap:8px}
+.exportacoes-v4 .cta{min-width:0;width:auto;padding:10px 12px;font-size:.84rem}
+.definicao-origem{border-left:5px solid var(--ia);background:#f3eeff;padding:12px 14px;border-radius:10px;text-align:left;line-height:1.5;font-size:.9rem}
+.audio-auditoria .acoes{justify-content:flex-start;gap:10px}
+.audio-auditoria .cta{width:auto;min-width:0;padding:10px 16px}
+@media(max-width:620px){.exportacoes-v4 .cta{width:100%}.auditoria-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

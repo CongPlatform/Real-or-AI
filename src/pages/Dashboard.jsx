@@ -1,236 +1,195 @@
-import { useMemo } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  ScatterChart, Scatter, ReferenceLine, LabelList,
-} from 'recharts';
-import { analisar } from '../lib/stats';
-import { FREQ, TIPOS } from '../lib/opcoes';
+import { useMemo, useState } from 'react';
+import { BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis, ResponsiveContainer, Legend } from 'recharts';
+import { analisarAvancado, ENQUADRAMENTOS, TIPOS_ANALISE } from '../lib/analiseAvancada';
+import { supabase } from '../lib/supabase';
 
-const META = 100;
-const f1 = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d).replace('.', ',') : '—');
-const fp = (p) => (!Number.isFinite(p) ? '—' : p < 0.001 ? '< 0,001' : f1(p, 3));
-const COR = { real: '#C6F432', ia: '#5B3DF5', ref: '#FF5C5C', ink: '#14122B', sol: '#FFC247' };
-
-function Barras({ dados, y = 'media', cor = COR.ink, dominio = [0, 100], unid = '%', linhaReferencia = 50, rotulo = 'Média', longo = false }) {
-  return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={dados} margin={{ top: 18, right: 8, left: -12, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} angle={longo ? -25 : 0} textAnchor={longo ? 'end' : 'middle'} height={longo ? 78 : 30} />
-        <YAxis domain={dominio} tick={{ fontSize: 11 }} unit={unid} allowDecimals={false} />
-        <Tooltip formatter={(v) => [f1(v) + unid, rotulo]} />
-        {linhaReferencia !== false && <ReferenceLine y={linhaReferencia} stroke={COR.ref} strokeDasharray="4 4" />}
-        <Bar dataKey={y} fill={cor} stroke={COR.ink} strokeWidth={2} radius={[6, 6, 0, 0]}>
-          <LabelList dataKey={y} position="top" formatter={(v) => f1(v, unid === '%' ? 0 : 0)} fontSize={11} />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+const META=100;
+const fmt=(x,n=1)=>Number.isFinite(Number(x))&&x!==null&&x!==''?Number(x).toFixed(n).replace('.',','):'—';
+const pc=(x)=>x==null?'—':`${fmt(x)}%`;
+const intervalo=(a)=>a?`${fmt(a[0])}–${fmt(a[1])}%`:'—';
+function downloadCsv(nome, colunas, rows){
+  const proteger=v=>{
+    if(v==null)return '';
+    let s=String(v);
+    // Impede interpretações de fórmulas quando aberto em planilhas.
+    if(/^[\s]*[=+@\-]/.test(s))s="'"+s;
+    return '"'+s.replace(/"/g,'""')+'"';
+  };
+  const linhas=[colunas.map(x=>x[1]),...rows.map(r=>colunas.map(([chave])=>r[chave]))];
+  const csv='\ufeff'+linhas.map(l=>l.map(proteger).join(';')).join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download=nome;link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1200);
 }
-
-function exportar(linhas) {
-  const tipos = Object.keys(TIPOS);
-  const cab = ['id', 'faixa_etaria', 'genero', 'escolaridade', 'freq_ia', 'usos_ia', 'confianca', 'estimativa_acertos', 'respostas', 'acertos', 'pct', ...tipos.map((t) => 'pct_' + t), 'comp_exato_pct', 'comp_item_pct'];
-  const lin = linhas.map((l) => [
-    l.id, l.faixa_etaria, l.genero || '', l.escolaridade, l.freq_ia, (l.usos_ia || []).join('+'), l.confianca,
-    l.estimativa_acertos ?? '', l.n, l.acertos, f1(l.pct, 2),
-    ...tipos.map((t) => (l.tipos[t] ? f1((100 * l.tipos[t].a) / l.tipos[t].n, 2) : '')),
-    l.comp ? f1(l.comp.exato, 2) : '', l.comp ? f1(l.comp.item, 2) : '',
-  ]);
-  const csv = '\ufeff' + [cab, ...lin].map((r) => r.join(';')).join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'resultados-real-ou-ia.csv'; a.click();
+function Distribuicao({ dados, campo='acerto', nome='nome', limite=100, title='Acertos (%)' }) {
+  if(!dados.some(x=>x[campo]!=null)) return <p className="mut">Sem dados válidos para este gráfico.</p>;
+  return <ResponsiveContainer width="100%" height={260}>
+    <BarChart data={dados.filter(r=>r[campo]!=null)} margin={{top:16,right:14,bottom:15,left:-9}}>
+      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+      <XAxis dataKey={nome} tick={{fontSize:11}} interval={0} height={35}/>
+      <YAxis domain={[0,limite]} tick={{fontSize:11}} unit={limite===100?'%':''}/>
+      <Tooltip formatter={v=>[limite===100?pc(v):fmt(v,0),title]}/>
+      <Bar dataKey={campo} fill="#6345e9" radius={[7,7,0,0]} maxBarSize={70}/>
+    </BarChart>
+  </ResponsiveContainer>;
 }
-
-
-const ROTULOS_ENQUADRAMENTO = { neutro: 'Neutra', ia: 'Pergunta sobre IA', humano: 'Pergunta sobre humano' };
-const media = (v) => v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
-function exportarRespostas(extras) {
-  const cab = ['participante_id','tipo_rodada','conteudo_id','tipo','enquadramento','era_ia','resposta_ia','acertou','tempo_ms','segundos_reproduzidos','pedidos_mais','numero_ia_no_par','marcados_ia'];
-  const individuais = (extras.individuais || []).map((r) => [r.participante_id,'individual',r.conteudo_id,r.tipo,r.enquadramento,r.era_ia,r.resposta_ia,r.acertou,r.tempo_ms,r.segundos_reproduzidos,r.pedidos_mais,'','']);
-  const comparacoes = (extras.comparacoes || []).map((r) => [r.participante_id,'comparacao',r.comparacao_id,r.tipo,r.enquadramento,'','',r.acertou,r.tempo_ms,'','',r.n_reais_ia,r.n_marcados_ia]);
-  const csv = '\ufeff' + [cab,...individuais,...comparacoes].map((x) => x.map((v) => `"${String(v ?? '').replace(/"/g,'""')}"`).join(';')).join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = 'respostas-por-enunciado-e-audio.csv'; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
-function DadosEnquadramento({ extras }) {
-  if (!extras) return null;
-  const ind = extras.individuais || [];
-  const comp = extras.comparacoes || [];
-  if (!ind.length && !comp.length) return <section className="painel larga"><h2>Enquadramento das perguntas e escuta dos áudios</h2><p className="mut">Os dados aparecerão depois que alguém realizar o novo teste de 30 decisões.</p></section>;
-  const conteudo = (linhas) => ['neutro','ia','humano'].map((chave) => {
-    const x = linhas.filter((r) => r.enquadramento === chave);
-    return { chave, n: x.length, taxa: media(x.map((r) => Number(r.acertou))), ia: media(x.map((r) => Number(r.resposta_ia))), segundos: media(x.map((r) => (+r.tempo_ms || 0) / 1000)) };
-  });
-  const audios = ind.filter((r) => r.tipo === 'audio');
-  return <section className="painel larga">
-    <h2>Formulação das perguntas e escuta progressiva</h2>
-    <p className="mut">A formulação é sorteada e registrada, sem revelar a origem correta. Diferenças entre grupos são exploratórias até haver amostra suficiente.</p>
-    <div className="acoes"><span className="mut">{ind.length} decisões individuais · {comp.length} comparações</span>
-      <button className="link" onClick={() => exportarRespostas(extras)}>CSV por pergunta e escuta</button></div>
-    <h3>Perguntas individuais</h3>
-    <div className="rolagem"><table><thead><tr><th>Formulação</th><th>Respostas</th><th>Acertos</th><th>Disse IA</th><th>Tempo médio (s)</th></tr></thead>
-      <tbody>{conteudo(ind).map((r) => <tr key={r.chave}><td>{ROTULOS_ENQUADRAMENTO[r.chave]}</td><td>{r.n}</td><td>{f1(100*r.taxa)}%</td><td>{f1(100*r.ia)}%</td><td>{f1(r.segundos)}</td></tr>)}</tbody></table></div>
-    <h3>Formulação × modalidade (classificação individual)</h3>
-    <div className="rolagem"><table><thead><tr><th>Modalidade</th><th>Formulação</th><th>Respostas</th><th>Acertos</th><th>Classificou como IA</th></tr></thead>
-    <tbody>{['imagem','texto','audio','video'].flatMap((tipo) => ['neutro','ia','humano'].map((frame) => {
-      const x = ind.filter((r) => r.tipo === tipo && r.enquadramento === frame);
-      return x.length ? <tr key={`${tipo}-${frame}`}><td>{TIPOS[tipo]}</td><td>{ROTULOS_ENQUADRAMENTO[frame]}</td><td>{x.length}</td>
-        <td>{f1(100 * media(x.map((r) => Number(r.acertou))))}%</td><td>{f1(100 * media(x.map((r) => Number(r.resposta_ia))))}%</td></tr> : null;
-    }))}</tbody></table></div>
-    <h3>Comparações (ambos os itens devem estar corretos)</h3>
-    <div className="rolagem"><table><thead><tr><th>Formulação</th><th>Respostas</th><th>Acertos exatos</th><th>Tempo médio (s)</th></tr></thead>
-      <tbody>{conteudo(comp).map((r) => <tr key={r.chave}><td>{ROTULOS_ENQUADRAMENTO[r.chave]}</td><td>{r.n}</td><td>{f1(100*r.taxa)}%</td><td>{f1(r.segundos)}</td></tr>)}</tbody></table></div>
-    <h3>Áudios com escuta por trechos</h3>
-    <div className="rolagem"><table><thead><tr><th>Respostas</th><th>Segundos realmente reproduzidos (média)</th><th>Pedidos de mais áudio (média)</th><th>Acertos</th></tr></thead>
-      <tbody><tr><td>{audios.length}</td><td>{f1(media(audios.map((r) => +r.segundos_reproduzidos || 0)))}</td>
-        <td>{f1(media(audios.map((r) => +r.pedidos_mais || 0)))}</td><td>{f1(100*media(audios.map((r) => Number(r.acertou))))}%</td></tr></tbody></table></div>
-  </section>;
-}
-
-export default function Dashboard({ dados, atual, extras }) {
-  const s = useMemo(() => analisar(dados), [dados]);
-  const g = s.geral;
-  const sig = g.p < 0.05;
-  const { ia_ia, ia_real, real_ia, real_real } = s.conf;
-  const nIA = ia_ia + ia_real, nReal = real_ia + real_real;
-  const tipoDados = s.porTipo.filter((t) => t.n > 0);
-
-  return (
-    <div className="dash">
-      <div className="barra-meta">
-        <div className="meta-txt"><b>{s.fin}</b> de {META} participantes completos <span className="mut">({s.total - s.fin} em andamento · {s.nResp} respostas)</span></div>
-        <div className="barra"><i style={{ width: `${Math.min(100, (100 * s.fin) / META)}%` }} /></div>
-        <div className="acoes">
-          <span className="mut">Atualizado às {atual?.toLocaleTimeString('pt-BR')}</span>
-          <button className="link" onClick={() => exportar(s.linhas)} disabled={!s.linhas.length}>Baixar CSV</button>
-        </div>
-      </div>
-
-      {s.linhas.length < 2 ? <p className="mut">Aguardando as primeiras respostas completas para calcular.</p> : (<>
-        <div className="kpis">
-          <div><b>{f1(g.media)}%</b><span>média de acerto</span></div>
-          <div><b>{f1(g.mediana)}%</b><span>mediana</span></div>
-          <div><b>{f1(g.desvio)}</b><span>desvio padrão (p.p.)</span></div>
-          <div><b>{f1(g.ic[0], 0)}–{f1(g.ic[1], 0)}%</b><span>IC 95% da média</span></div>
-        </div>
-        <p className="leitura">
-          Média de {f1(g.media)}% contra 50% do puro chute: t = {f1(g.t, 2)}, p {fp(g.p) === '< 0,001' ? '' : '= '}{fp(g.p)}.{' '}
-          {sig ? (g.media > 50 ? 'As pessoas acertam mais do que o acaso (diferença significativa a 5%).' : 'As pessoas acertam menos do que o acaso (diferença significativa a 5%).') : 'Não há evidência de que as pessoas se saiam diferente do acaso (a 5%).'}
-        </p>
-
-        <section className="painel larga">
-          <h2>Estatística descritiva (acerto por participante, em %)</h2>
-          <div className="rolagem">
-            <table>
-              <thead><tr><th>Grupo</th><th>n</th><th>Média</th><th>Mediana</th><th>Desvio</th><th>Variância</th><th>Mín</th><th>Q1</th><th>Q3</th><th>Máx</th><th>CV %</th><th>Erro pad.</th><th>IC 95%</th><th>p (vs 50%)</th><th>Tempo med. (s)</th></tr></thead>
-              <tbody>
-                {[{ nome: 'Geral', ...g }, ...tipoDados].map((r) => (
-                  <tr key={r.nome}>
-                    <td><b>{r.nome}</b></td><td>{r.n}</td><td>{f1(r.media)}</td><td>{f1(r.mediana)}</td><td>{f1(r.desvio)}</td><td>{f1(r.variancia)}</td>
-                    <td>{f1(r.min, 0)}</td><td>{f1(r.q1)}</td><td>{f1(r.q3)}</td><td>{f1(r.max, 0)}</td><td>{f1(r.cv, 0)}</td><td>{f1(r.ep, 2)}</td>
-                    <td>{f1(r.ic[0])}–{f1(r.ic[1])}</td><td>{fp(r.p)}</td><td>{r.tempoMed != null ? f1(r.tempoMed) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <details>
-            <summary>Fórmulas usadas</summary>
-            <p>Média x̄ = Σx / n · Variância amostral s² = Σ(x − x̄)² / (n − 1) · Desvio s = √s² · Erro padrão = s / √n · CV = s / x̄ · IC 95% = x̄ ± 1,96·EP · t = (x̄ − 50) / EP (p pela aproximação normal, bom para n grande) · Pearson r = Σ(x−x̄)(y−ȳ) / √(Σ(x−x̄)²·Σ(y−ȳ)²) · Quartis por interpolação linear.</p>
-          </details>
-        </section>
-
-        {s.comp.n > 0 && (<>
-          <section className="painel larga">
-            <h2>Comparações (2 conteúdos por rodada, % por participante)</h2>
-            <p className="mut">Acerto exato = acertou os dois itens da rodada. Chutando, a pessoa acerta 25% das rodadas e 50% dos itens.</p>
-            <div className="rolagem">
-              <table>
-                <thead><tr><th>Grupo</th><th>n</th><th>Média</th><th>Mediana</th><th>Desvio</th><th>Mín</th><th>Máx</th><th>IC 95%</th><th>Acaso %</th><th>p (vs acaso)</th></tr></thead>
-                <tbody>
-                  {[
-                    { nome: 'Geral · resposta exata', acaso: 25, ...s.comp.exato },
-                    { nome: 'Geral · por item', acaso: 50, ...s.comp.item },
-                    ...s.comp.porCen.map((r) => ({ ...r, nome: r.nome + ' (exata)', acaso: 25 })),
-                    ...s.comp.porTipo.filter((r) => r.n > 0).map((r) => ({ ...r, nome: r.nome + ' (exata)', acaso: 25 })),
-                  ].map((r) => (
-                    <tr key={r.nome}>
-                      <td><b>{r.nome}</b></td><td>{r.n}</td><td>{f1(r.media)}</td><td>{f1(r.mediana)}</td><td>{f1(r.desvio)}</td>
-                      <td>{f1(r.min, 0)}</td><td>{f1(r.max, 0)}</td><td>{f1(r.ic[0])}–{f1(r.ic[1])}</td><td>{r.acaso}</td><td>{fp(r.p)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <div className="grade">
-            <section className="painel"><h2>Acerto exato por cenário da rodada</h2><Barras dados={s.comp.porCen} cor={COR.ia} linhaReferencia={25} /></section>
-            <section className="painel">
-              <h2>Quanto marcaram “IA” em cada cenário</h2>
-              <Barras dados={s.comp.tend} cor={COR.sol} linhaReferencia={false} rotulo="Marcaram IA" />
-              <p className="mut">Se acertassem sempre, seria 0%, 50% e 100%.</p>
-            </section>
-            <section className="painel"><h2>Acerto exato por tipo (comparação)</h2><Barras dados={s.comp.porTipo.filter((t) => t.n > 0)} cor={COR.real} linhaReferencia={25} /></section>
-            <section className="painel">
-              <h2>Individual × comparação (acerto por item)</h2>
-              <Barras dados={[{ nome: 'Individual', media: g.media }, { nome: 'Comparação', media: s.comp.item.media }]} cor={COR.ia} />
-              <p className="mut">Diferença média pareada (comparação − individual): {f1(s.comp.dif.media)} p.p. · t = {f1(s.comp.dif.t, 2)} · p {fp(s.comp.dif.p)}</p>
-            </section>
-          </div>
-        </>)}
-
-        <div className="grade">
-          <section className="painel"><h2>Acerto médio por tipo de conteúdo</h2><Barras dados={tipoDados} cor={COR.ia} /></section>
-          <section className="painel"><h2>Distribuição das notas (nº de pessoas)</h2><Barras dados={s.hist} y="n" dominio={[0, 'auto']} unid="" linhaReferencia={false} rotulo="Pessoas" cor={COR.ia} /></section>
-          <section className="painel"><h2>Acerto por faixa etária</h2><Barras dados={s.porFaixa} cor={COR.real} /></section>
-          <section className="painel">
-            <h2>Acerto por frequência de uso de IA</h2><Barras dados={s.porFreq} cor={COR.ia} />
-            <p className="mut">Correlação (frequência × acerto): r = {f1(s.rFreq, 2)}</p>
-          </section>
-          <section className="painel">
-            <h2>Acerto por autoavaliação (1 a 5)</h2><Barras dados={s.porConf} cor={COR.sol} />
-            <p className="mut">Correlação (confiança × acerto): r = {f1(s.rConf, 2)}</p>
-          </section>
-          <section className="painel"><h2>Acerto por escolaridade</h2><Barras dados={s.porEsc} cor={COR.real} longo /></section>
-          <section className="painel">
-            <h2>Estimado × real</h2>
-            <ResponsiveContainer width="100%" height={240}>
-              <ScatterChart margin={{ top: 10, right: 12, left: -10, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" dataKey="x" name="Real" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
-                <YAxis type="number" dataKey="y" name="Estimado" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
-                <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]} stroke={COR.ref} strokeDasharray="4 4" />
-                <Tooltip formatter={(v) => f1(v) + '%'} />
-                <Scatter data={s.calib} fill={COR.ia} fillOpacity={0.6} />
-              </ScatterChart>
-            </ResponsiveContainer>
-            <p className="mut">Acima da linha = a pessoa achou que acertou mais do que acertou. Viés médio: {f1(s.vies.media)} p.p. (p {fp(s.vies.p)}) · r = {f1(s.rCalib, 2)}</p>
-          </section>
-          <section className="painel">
-            <h2>Para que as pessoas usam IA</h2>
-            <Barras dados={s.usos} y="n" dominio={[0, 'auto']} unid="" linhaReferencia={false} rotulo="Pessoas" cor={COR.real} />
-          </section>
-          <section className="painel">
-            <h2>Matriz de confusão (todas as respostas)</h2>
-            <table className="conf">
-              <thead><tr><th /><th>Disse “IA”</th><th>Disse “Real”</th></tr></thead>
-              <tbody>
-                <tr><th>Era IA</th><td className="ok">{ia_ia}</td><td>{ia_real}</td></tr>
-                <tr><th>Era real</th><td>{real_ia}</td><td className="ok">{real_real}</td></tr>
-              </tbody>
-            </table>
-            <p className="mut">
-              Acerto quando era IA: {f1((100 * ia_ia) / (nIA || NaN))}% · acerto quando era real: {f1((100 * real_real) / (nReal || NaN))}%.
-              {' '}Chamaram de “IA” {f1((100 * (ia_ia + real_ia)) / (nIA + nReal || NaN))}% das vezes.
-            </p>
-          </section>
-        </div>
-      </>)}
-      <DadosEnquadramento extras={extras} />
+function Kpi({valor, rotulo, detalhe}) { return <div className="kpi-v4"><strong>{valor}</strong><span>{rotulo}</span>{detalhe&&<small>{detalhe}</small>}</div>; }
+function Painel({titulo,descricao,children}) {return <section className="painel"><h2>{titulo}</h2>{descricao&&<p className="mut">{descricao}</p>}{children}</section>;}
+export default function Dashboard({ dados, atual, avancado, atualizar }) {
+  const [incluirPilotos,setIncluirPilotos]=useState(false);
+  const [mudando,setMudando]=useState('');
+  const [erro,setErro]=useState('');
+  const dadosNovos=useMemo(()=>analisarAvancado(avancado,incluirPilotos),[avancado,incluirPilotos]);
+  const d=dadosNovos;
+  async function piloto(p){
+    setMudando(p.id);setErro('');
+    try {
+      const {error}=await supabase.rpc('admin_classificar_piloto_v4',{
+        p_participante:p.id,p_excluir:!p.excluir_analise,
+      });
+      if(error)throw error;
+      await atualizar?.();
+    }catch(e){setErro(e.message||'Falha ao alterar a sessão.');}
+    finally{setMudando('');}
+  }
+  const progress=Math.min(100,100*d.coleta.validas/META);
+  const q=d.quad;
+  const exatas=q.vv+q.vf, reais=q.ff+q.fv;
+  const participantesCSV=d.pessoas.map(p=>({
+    id:p.id,faixa:p.faixa,genero:p.genero,escolaridade:p.escolaridade,frequencia:p.freq,
+    confianca:p.confianca,estimativa:p.estimativa,n_individuais:p.n_ind,acertos_individuais:p.acertos,
+    percentual_individual:p.pct_ind,n_comparacoes:p.n_comp,acertos_comparacoes:p.acertosPares,
+    percentual_comparacoes:p.pct_comp,tempo_mediano_s:p.tempo_med_s,
+  }));
+  const individuaisCSV=d.ri.map(r=>({
+    participante:r.participante_id,conteudo:r.conteudo_id,tipo:r.tipo,
+    enquadramento:r.enquadramento,origem_ia:r.origem_ia,resposta_ia:r.resposta_ia,
+    acertou:r.acertou,tempo_ms:r.tempo_ms,segundos_reproduzidos:r.segundos_reproduzidos,
+    pedidos_mais:r.pedidos_mais,duracao_audio_s:r.duracao_audio_s,
+    trecho_liberado_s:r.trecho_liberado_s,repeticoes_audio:r.repeticoes_audio,
+    data:r.data,ordem:r.ordem,
+  }));
+  const compsCSV=d.rc.map(r=>({participante:r.participante_id,comparacao:r.comparacao_id,
+    tipo:r.tipo,enquadramento:r.enquadramento,acertou:r.acertou,
+    acertos_itens:r.acertos_itens,n_itens:r.n_itens,n_reais_ia:r.n_reais_ia,
+    n_marcados_ia:r.n_marcados_ia,tempo_ms:r.tempo_ms,data:r.data}));
+  const resultadoDia=d.coleta.porDia.map(x=>({...x,nome:x.nome.slice(5)}));
+  return <div className="dash dash-v4">
+    <div className="barra-meta">
+      <div className="meta-txt"><b>Pesquisa REAL OU IA?</b> · Painel estatístico v4
+        <span className="mut"> Atualizado {atual?.toLocaleString('pt-BR')||'—'}</span></div>
+      <div className="barra"><i style={{width:`${progress}%`}}/></div>
+      <div className="mut">Meta: {d.coleta.validas} de {META} sessões válidas (30 decisões completas).</div>
     </div>
-  );
+    <div className="auditoria-filtros">
+      <label><input type="checkbox" checked={incluirPilotos} onChange={e=>setIncluirPilotos(e.target.checked)}/> Incluir sessões marcadas como piloto nos cálculos</label>
+      <small>Os dados originais não são apagados; os indicadores principais excluem, por padrão, sessões incompletas, versões antigas e pilotos.</small>
+    </div>
+    {erro&&<p role="alert" className="erro">{erro}</p>}
+    <div className="kpis">
+      <Kpi valor={String(d.coleta.validas)} rotulo="Sessões válidas" detalhe={`${d.coleta.finalizadas} finalizadas no total`}/>
+      <Kpi valor={pc(d.notas.media)} rotulo="Acerto individual médio" detalhe={`${d.notas.n} participantes`}/>
+      <Kpi valor={intervalo(d.notas.ic)} rotulo="IC 95% da média" detalhe="Unidade: pessoa, não clique"/>
+      <Kpi valor={String(d.coleta.volume)} rotulo="Respostas analisadas" detalhe="Individuais + comparações"/>
+    </div>
+    <Painel titulo="Qualidade da coleta" descricao="Verificação automática antes de interpretar os resultados. As sessões continuam disponíveis para auditoria.">
+      <div className="auditoria-grid">
+        <div><strong>{d.coleta.total}</strong><span>iniciadas</span></div>
+        <div><strong>{d.coleta.finalizadas}</strong><span>finalizadas</span></div>
+        <div><strong>{d.coleta.incompletas}</strong><span>abandonadas/em andamento</span></div>
+        <div><strong>{d.coleta.foraProtocolo}</strong><span>fora do protocolo de 30</span></div>
+        <div><strong>{d.coleta.pilotos}</strong><span>marcadas como piloto</span></div>
+        <div><strong>{d.coleta.validas}</strong><span>incluídas na análise</span></div>
+      </div>
+      {d.coleta.validas<20&&<p className="aviso">Amostra pequena. Não interprete diferenças entre grupos como conclusões definitivas. Os intervalos são apenas indicativos.</p>}
+      {d.coleta.incompletas>0&&<p className="mut">Taxa de conclusão (todas as versões): {pc(100*d.coleta.finalizadas/Math.max(1,d.coleta.total))}.</p>}
+      <h3>Inícios e conclusões por dia</h3>
+      <Distribuicao dados={resultadoDia} campo="iniciadas" limite={Math.max(1,...resultadoDia.map(x=>x.iniciadas))} title="Sessões iniciadas"/>
+    </Painel>
+    {d.coleta.validas>0&&<>
+      <div className="grade">
+        <Painel titulo="Acertos por modalidade" descricao="Cada participante tem o mesmo peso dentro de cada grupo. Exibições por formato são diferentes.">
+          <Distribuicao dados={d.tipo}/>
+          <div className="rolagem"><table><thead><tr><th>Modalidade</th><th>Respostas</th><th>Pessoas</th><th>Média</th><th>IC 95%</th><th>Tempo mediano</th></tr></thead>
+            <tbody>{d.tipo.map(r=><tr key={r.tipo}><td>{r.nome}</td><td>{r.n}</td><td>{r.participantes}</td>
+              <td>{pc(r.acerto)}</td><td>{intervalo(r.ic)}</td><td>{fmt(r.tempo_med_s)}s</td></tr>)}</tbody></table></div>
+        </Painel>
+        <Painel titulo="Distribuição IA / humana" descricao="Mostra a origem correta dos conteúdos efetivamente sorteados; não é a quantidade total cadastrada.">
+          <Distribuicao dados={[{nome:'IA',n:d.composicao.IA},{nome:'Humano',n:d.composicao.real}]} campo="n"
+            limite={Math.max(1,d.composicao.IA,d.composicao.real)} title="Respostas"/>
+          <p className="mut">{d.composicao.IA} questões de origem IA e {d.composicao.real} de origem humana.</p>
+        </Painel>
+      </div>
+      <Painel titulo="Matriz de confusão — classificações individuais" descricao="Diferencia falsas acusações de IA e imagens/áudios artificiais considerados humanos. Contagens por resposta; a inferência deve usar pessoas.">
+        <div className="rolagem"><table className="conf"><thead><tr><th>Origem verdadeira</th><th>Participante respondeu IA</th><th>Participante respondeu humano</th></tr></thead>
+          <tbody><tr><th>IA</th><td className="ok">{q.vv}</td><td>{q.vf}</td></tr><tr><th>Humano</th><td>{q.fv}</td><td className="ok">{q.ff}</td></tr></tbody></table></div>
+        <p className="mut">Sensibilidade para IA: {pc(exatas?100*q.vv/exatas:null)} · Reconhecimento de humano: {pc(reais?100*q.ff/reais:null)} · Taxa de chamar algo de IA: {pc(d.ri.length?100*(q.vv+q.fv)/d.ri.length:null)}.</p>
+      </Painel>
+      <Painel titulo="A formulação da pergunta muda o resultado?" descricao="Comparação exploratória das formulações. A distribuição por conteúdo e posição também pode influenciar; não prova causalidade.">
+        <Distribuicao dados={d.porFrame}/>
+        <div className="rolagem"><table><thead><tr><th>Pergunta</th><th>Respostas</th><th>Pessoas</th><th>Média individual</th><th>IC 95%</th><th>Chamou de IA</th><th>Tempo mediano</th></tr></thead>
+          <tbody>{d.porFrame.map(r=><tr key={r.chave}><td>{r.nome}</td><td>{r.n}</td><td>{r.participantes}</td><td>{pc(r.acerto)}</td><td>{intervalo(r.ic)}</td><td>{pc(r.disseIa)}</td><td>{fmt(r.tempoMed)}s</td></tr>)}</tbody></table></div>
+        <h3>Formulação dentro de cada modalidade</h3>
+        <div className="rolagem"><table><thead><tr><th>Formato</th><th>Enquadramento</th><th>Respostas</th><th>Pessoas</th><th>Média de acertos</th><th>Marcou IA</th></tr></thead>
+          <tbody>{d.fTipo.map(r=><tr key={`${r.tipo}-${r.frame}`}><td>{r.nome}</td><td>{ENQUADRAMENTOS[r.frame]}</td><td>{r.n}</td><td>{r.pessoas}</td><td>{pc(r.acerto)}</td><td>{pc(r.disseIA)}</td></tr>)}</tbody></table></div>
+      </Painel>
+      <div className="grade">
+        <Painel titulo="Comparações (duas peças)" descricao="Não misturar acerto exato da dupla (25% de chance sob chute uniforme) com acerto por peça (50%).">
+          <div className="auditoria-grid"><div><strong>{pc(d.comparacaoExata.media)}</strong><span>dupla inteiramente correta</span></div><div><strong>{pc(d.comparacaoItens.media)}</strong><span>acerto por peça</span></div></div>
+          <div className="rolagem"><table><thead><tr><th>Formulação</th><th>Rodadas</th><th>Média exata</th></tr></thead>
+            <tbody>{d.porFrameComp.map(r=><tr key={r.chave}><td>{r.nome}</td><td>{r.n}</td><td>{pc(r.acerto)}</td></tr>)}</tbody></table></div>
+        </Painel>
+        <Painel titulo="Confiança × desempenho" descricao="Estimativa de acertos após o teste, comparada apenas com decisões individuais.">
+          <div className="auditoria-grid"><div><strong>{pc(d.viesConfianca.media)}</strong><span>viés médio da estimativa</span></div><div><strong>{d.viesConfianca.n}</strong><span>participantes com estimativa</span></div></div>
+          <p className="mut">Viés positivo significa superestimar o desempenho. Viés negativo significa subestimar. Valores obtidos por participante.</p>
+        </Painel>
+      </div>
+      <Painel titulo="Escuta progressiva de áudios" descricao="Trecho liberado ≠ segundos realmente escutados (repetições podem aumentar o total). A decisão de ouvir mais é do participante; não estabelece efeito causal.">
+        <div className="auditoria-grid">
+          <div><strong>{d.audio.medidos}/{d.audio.n}</strong><span>áudios com telemetria completa</span></div>
+          <div><strong>{fmt(d.audio.ouvidoMed)} s</strong><span>reprodução mediana</span></div>
+          <div><strong>{fmt(d.audio.fraçãoMed)}%</strong><span>porção mediana liberada</span></div>
+          <div><strong>{fmt(d.audio.maisMed)}</strong><span>pedidos de mais (média)</span></div>
+          <div><strong>{fmt(d.audio.repeticoesMed)}</strong><span>reinícios (média)</span></div>
+        </div>
+        <h3>Respostas por quantidade de solicitações de mais áudio</h3>
+        <div className="rolagem"><table><thead><tr><th>Pedidos de mais</th><th>Respostas</th><th>Acertos</th></tr></thead>
+          <tbody>{d.audio.etapas.map(t=><tr key={t.nome}><td>{t.nome}</td><td>{t.n}</td><td>{pc(t.acerto)}</td></tr>)}</tbody></table></div>
+      </Painel>
+      <Painel titulo="Conteúdos que mais confundem" descricao="Apenas itens individuais exibidos ao menos cinco vezes. Com poucos participantes, o ranking ainda é instável.">
+        <div className="rolagem"><table><thead><tr><th>Conteúdo (somente admin)</th><th>Formato</th><th>Origem</th><th>Exibições válidas</th><th>Acertos</th><th>Chamou de IA</th></tr></thead>
+          <tbody>{d.difficult.slice(0,20).map(r=><tr key={r.id}><td>{r.nome||r.id.slice(0,8)}</td><td>{TIPOS_ANALISE[r.tipo]||r.tipo}</td>
+            <td>{r.origem_ia?'IA':'Humano'}</td><td>{r.n_exibicoes}</td><td>{pc(r.pct_acerto)}</td><td>{pc(r.marca_ia)}</td></tr>)}</tbody></table></div>
+        {!d.difficult.length&&<p className="mut">Ainda não há itens com cinco exposições válidas.</p>}
+      </Painel>
+    </>}
+    <Painel titulo="Exportação e auditoria das sessões" descricao="Exportações usam somente participantes incluídos no filtro acima. Os identificadores são técnicos; não publique arquivos brutos com dados de participantes.">
+      <div className="acoes exportacoes-v4">
+        <button className="cta" onClick={()=>downloadCsv('participantes_analise.csv',[
+          ['id','ID'],['faixa','Faixa etária'],['genero','Gênero'],['escolaridade','Escolaridade'],['frequencia','Frequência de IA'],
+          ['confianca','Confiança (1-5)'],['estimativa','Estimativa (acertos)'],['n_individuais','Individuais'],['acertos_individuais','Acertos individuais'],
+          ['percentual_individual','Percentual individual'],['n_comparacoes','Comparações'],['acertos_comparacoes','Acertos exatos de comparação'],
+          ['percentual_comparacoes','Percentual comparação'],['tempo_mediano_s','Tempo mediano (s)']
+        ],participantesCSV)}>CSV participantes</button>
+        <button className="cta" onClick={()=>downloadCsv('respostas_individuais.csv',Object.keys(individuaisCSV[0]||{participante:1}).map(k=>[k,k]),individuaisCSV)}>CSV decisões individuais</button>
+        <button className="cta" onClick={()=>downloadCsv('respostas_comparacoes.csv',Object.keys(compsCSV[0]||{participante:1}).map(k=>[k,k]),compsCSV)}>CSV comparações</button>
+        <button className="cta" onClick={()=>downloadCsv('desempenho_itens.csv',[
+          ['id','ID conteúdo'],['nome','Título interno'],['tipo','Tipo'],['origem_ia','Origem IA'],['n_exibicoes','Exibições válidas'],
+          ['acertos','Acertos'],['pct_acerto','Acertos (%)'],['marca_ia','Marcado IA (%)'],['mediana_tempo','Tempo mediano (s)']
+        ],d.exportItens)}>CSV conteúdos</button>
+      </div>
+      <h3>Identificação de sessões piloto</h3>
+      <p className="mut">Marque testes feitos pela equipe para não entrarem nas estatísticas oficiais. Sessões não são apagadas; para voltar a incluí-las, desmarque piloto.</p>
+      <div className="rolagem"><table><thead><tr><th>Identificador</th><th>Iniciada em</th><th>Decisões</th><th>Finalizada?</th><th>Origem</th><th>Ação</th></tr></thead>
+        <tbody>{[...d.sessoes].reverse().slice(0,120).map(p=><tr key={p.id}>
+          <td title={p.id}>{String(p.id).slice(0,8)}…</td>
+          <td>{p.inicio?new Date(p.inicio).toLocaleString('pt-BR'):'—'}</td>
+          <td>{(p.individuais_respondidas||0)+(p.comparacoes_respondidas||0)}/{p.sorteadas||'?'}</td>
+          <td>{p.finalizado?'Sim':'Não'}</td><td>{p.excluir_analise?'Piloto':'Pesquisa'}</td>
+          <td><button className="link" disabled={mudando===p.id} onClick={()=>piloto(p)}>{p.excluir_analise?'Reincluir':'Marcar piloto'}</button></td>
+        </tr>)}</tbody></table></div>
+      {d.sessoes.length>120&&<p className="mut">Exibindo as 120 sessões mais recentes; os cálculos usam todas as sessões elegíveis.</p>}
+    </Painel>
+    <p className="mut metodo-v4">**Nota metodológica:** médias e ICs descritivos usam o participante como unidade. Em grupos com n=1 não há IC. Não tratar cliques como observações independentes. Diferenças por faixa etária, formulação e conteúdo são exploratórias; resultados com muitos testes exigem cautela.</p>
+  </div>;
 }

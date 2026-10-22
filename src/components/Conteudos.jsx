@@ -6,6 +6,7 @@ import { criarItem } from '../lib/conteudosStorage';
 import ImportacaoMidiasEmLote from './ImportacaoMidiasEmLote';
 import OtimizarImagensExistentes from './OtimizarImagensExistentes';
 import RevisarTextosExistentes from './RevisarTextosExistentes';
+import NormalizarAudios from './NormalizarAudios';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -403,6 +404,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       <RevisarTextosExistentes recarregar={recarregar} />
 
       <ImportacaoMidiasEmLote tipo="audio" recarregar={recarregar} />
+
+      <NormalizarAudios recarregar={recarregar} />
 
       <ImportacaoMidiasEmLote tipo="video" recarregar={recarregar} />
 

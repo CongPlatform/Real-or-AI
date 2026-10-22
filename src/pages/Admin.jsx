@@ -25,7 +25,7 @@ function Login() {
 
 function Painel({ sair }) {
   const [d, setD] = useState(null);
-  const [metricas, setMetricas] = useState(null);
+  const [avancado, setAvancado] = useState(null);
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('stats');
   const [atual, setAtual] = useState(null);
@@ -33,12 +33,12 @@ function Painel({ sair }) {
 
   const carregar = useCallback(async () => {
     const [principal, adicional] = await Promise.all([
-      supabase.rpc('admin_dados'), supabase.rpc('admin_metricas_v3'),
+      supabase.rpc('admin_dados'), supabase.rpc('admin_analise_v4'),
     ]);
     if (principal.error) return setErro(principal.error.message);
     setD(principal.data);
-    setMetricas(adicional.error ? null : adicional.data);
-    setErro(adicional.error ? 'Métricas novas indisponíveis: execute o SQL PATCH_30_PERGUNTAS_ENQUADRAMENTO_AUDIO.sql no Supabase.' : '');
+    setAvancado(adicional.error ? null : adicional.data);
+    setErro(adicional.error ? 'Instale supabase/PATCH_ESTATISTICAS_V4.sql e atualize. ' + adicional.error.message : '');
     setAtual(new Date());
   }, []);
 
@@ -49,7 +49,7 @@ function Painel({ sair }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas' }, gatilho)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas_comp' }, gatilho)
       .subscribe();
-    const iv = setInterval(carregar, 20000);
+    const iv = setInterval(carregar, 60000);
     return () => { supabase.removeChannel(ch); clearInterval(iv); };
   }, [carregar]);
 
@@ -65,7 +65,8 @@ function Painel({ sair }) {
       </header>
       {erro && <p className="erro">{erro}</p>}
       {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
-        ? <Dashboard dados={d} atual={atual} extras={metricas} />
+        ? avancado ? <Dashboard dados={d} atual={atual} avancado={avancado} atualizar={carregar} />
+          : <div className="painel"><h2>Atualização estatística pendente</h2><p>Execute primeiro o arquivo <code>supabase/PATCH_ESTATISTICAS_V4.sql</code> no SQL Editor.</p></div>
         : <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} />}
     </div>
   );

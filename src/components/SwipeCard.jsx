@@ -12,7 +12,7 @@ export default function SwipeCard({ item, onDecide, primeiro, pergunta, enquadra
   const [audioPronto, setAudioPronto] = useState(item.tipo !== 'audio');
   const [conteudoPronto, setConteudoPronto] = useState(item.tipo === 'texto');
   const ini = useRef(null);
-  const metricas = useRef({ segundosReproduzidos: 0, pedidosMais: 0 });
+  const metricas = useRef({ segundosReproduzidos: 0, pedidosMais: 0, duracaoAudioS: 0, trechoLiberadoS: 0, repeticoesAudio: 0 });
   const t0 = useRef(performance.now());
   const rotulos = enquadramento === 'ia'
     ? { ia: 'Sim', humano: 'Não' }
