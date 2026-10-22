@@ -1,0 +1,95 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import Dashboard from './Dashboard';
+import Conteudos from '../components/Conteudos';
+
+function Login() {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState('');
+  async function entrar(e) {
+    e.preventDefault(); setErro('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    if (error) setErro('E-mail ou senha incorretos.');
+  }
+  return (
+    <div className="tela centro"><form className="cartao form-login" onSubmit={entrar}>
+      <h1>Área do admin</h1>
+      <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+      {erro && <p className="erro">{erro}</p>}
+      <button className="cta">Entrar</button>
+    </form></div>
+  );
+}
+
+function Painel({ sair }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState('');
+  const [aba, setAba] = useState('stats');
+  const [atual, setAtual] = useState(null);
+  const tm = useRef();
+
+  const carregar = useCallback(async () => {
+    const { data, error } = await supabase.rpc('admin_dados');
+    if (error) return setErro(error.message);
+    setErro(''); setD(data); setAtual(new Date());
+  }, []);
+
+  useEffect(() => {
+    carregar();
+    const gatilho = () => { clearTimeout(tm.current); tm.current = setTimeout(carregar, 800); };
+    const ch = supabase.channel('respostas-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas' }, gatilho)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas_comp' }, gatilho)
+      .subscribe();
+    const iv = setInterval(carregar, 20000);
+    return () => { supabase.removeChannel(ch); clearInterval(iv); };
+  }, [carregar]);
+
+  return (
+    <div className="admin">
+      <header className="admin-topo">
+        <h1>Real ou IA? <small>admin</small></h1>
+        <nav>
+          <button className={aba === 'stats' ? 'on' : ''} onClick={() => setAba('stats')}>Estatísticas</button>
+          <button className={aba === 'cont' ? 'on' : ''} onClick={() => setAba('cont')}>Conteúdos</button>
+          <button onClick={sair}>Sair</button>
+        </nav>
+      </header>
+      {erro && <p className="erro">{erro}</p>}
+      {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
+        ? <Dashboard dados={d} atual={atual} />
+        : <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} />}
+    </div>
+  );
+}
+
+export default function Admin() {
+  const [sess, setSess] = useState(undefined);
+  const [ok, setOk] = useState(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSess(data.session));
+    const { data: l } = supabase.auth.onAuthStateChange((_e, s) => setSess(s));
+    return () => l.subscription.unsubscribe();
+  }, []);
+  useEffect(() => {
+    if (!sess) return setOk(null);
+    supabase.rpc('sou_admin').then(({ data }) => setOk(!!data));
+  }, [sess]);
+
+  if (sess === undefined) return <div className="tela"><p className="mut">Carregando…</p></div>;
+  if (!sess) return <Login />;
+  if (ok === null) return <div className="tela"><p className="mut">Verificando acesso…</p></div>;
+  if (!ok) {
+    return (
+      <div className="tela">
+        <h1>Sem permissão</h1>
+        <p className="mut">Esta conta não está na tabela <code>admins</code>. Rode no SQL Editor:</p>
+        <pre className="codigo">{`insert into public.admins (user_id) values ('${sess.user.id}');`}</pre>
+        <button className="cta" onClick={() => supabase.auth.signOut()}>Sair</button>
+      </div>
+    );
+  }
+  return <Painel sair={() => supabase.auth.signOut()} />;
+}
