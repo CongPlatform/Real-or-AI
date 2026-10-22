@@ -26,10 +26,41 @@ const TABS=[
 function Painel({titulo,sub,children,wide=false}){
   return <section className={`painel v5-painel ${wide?'v5-wide':''}`}><div className="v5-painel-head"><h2>{titulo}</h2>{sub&&<p className="mut">{sub}</p>}</div>{children}</section>;
 }
+const GUIA_METRICAS = {
+  'Sensibilidade para IA': 'Entre as peças realmente geradas por IA, qual porcentagem foi reconhecida corretamente? Quanto maior, melhor o reconhecimento de IA.',
+  'Reconhecimento de humano': 'Entre os materiais de autoria humana, qual porcentagem foi identificada corretamente? Quanto maior, menos humanos foram confundidos com IA.',
+  'Taxa de chamar algo de IA': 'Entre todas as respostas, quantas escolheram IA? Isso mede uma tendência de escolha e não é uma taxa de acertos.',
+  'Taxa de conclusão': 'Porcentagem de sessões iniciadas que foram concluídas. Não mede habilidade em identificar IA.',
+  'Acurácia individual média': 'Média das porcentagens de acerto das pessoas; cada participante contribui com uma nota.',
+  'Média': 'Resultado obtido somando as notas dos participantes e dividindo pelo total de pessoas.',
+  'Mediana': 'Nota que fica no centro quando ordenamos os resultados. Metade das notas está de cada lado.',
+  'Mediana individual': 'Pontuação central entre os participantes, menos afetada por valores extremos do que a média.',
+  'Desvio padrão amostral': 'Indica o quanto as notas variaram de pessoa para pessoa. Quanto maior, mais diferentes foram os resultados.',
+  'Erro padrão': 'Medida da incerteza da média estimada, baseada no desvio padrão e no tamanho da amostra.',
+  'Intervalo 95%': 'Faixa estimada para a média sob hipóteses estatísticas. Não significa que 95% dos participantes estão nessa faixa.',
+  'Primeiro quartil (Q1)': 'Valor abaixo do qual está aproximadamente um quarto das notas individuais.',
+  'Terceiro quartil (Q3)': 'Valor abaixo do qual está aproximadamente três quartos das notas individuais.',
+  'Amplitude interquartil': 'Diferença entre Q3 e Q1: mostra a variação da metade central das notas.',
+  'Coeficiente de variação': 'Compara o tamanho do desvio padrão com a média; avalia a dispersão relativa.',
+  'Dupla totalmente correta': 'Porcentagem de comparações em que as duas peças foram classificadas corretamente.',
+  'Acertos por peça': 'Porcentagem de peças classificadas corretamente dentro das comparações.',
+  'Pedidos para ouvir mais': 'Quantas vezes os participantes solicitaram acesso a mais alguns segundos de áudio.',
+  'Trecho mediano liberado': 'Ponto central da porcentagem de áudio disponibilizada aos participantes, não necessariamente ouvida.',
+  'Escuta mediana': 'Tempo central efetivamente reproduzido nos áudios que possuem registro de escuta.',
+  'Viés médio da estimativa': 'Diferença média entre o palpite inicial de desempenho e o resultado observado.',
+  'Média observada da amostra': 'Média calculada somente com os participantes já concluídos, sem a hipótese inicial.',
+  'Média observada atual': 'Média dos dados realmente coletados até o momento.',
+  'Estimativa antes da próxima resposta': 'Previsão ilustrativa feita com as respostas existentes e uma hipótese inicial.',
+  'Estimativa ajustada após as respostas': 'Projeção descritiva atualizada após incluir as respostas coletadas.',
+  'Hipótese inicial configurada': 'Ponto de partida escolhido para a projeção. Não é resultado da pesquisa.',
+  'Resultados observados': 'Quantidade de participantes já incluídos no cálculo.',
+  'Decisões registradas': 'Total de respostas efetivamente registradas nas sessões analisadas.',
+  'Áudios com telemetria': 'Quantidade de respostas de áudio com informações de escuta registradas.'
+};
 function Numero({rotulo,valor,legenda,formula,destaque=false}){
   return <div className={`v5-numero ${destaque?'v5-numero-destaque':''}`}>
     <span className="v5-numero-rotulo">{rotulo}</span><strong>{valor}</strong>
-    {legenda&&<p>{legenda}</p>}{formula&&<code>{formula}</code>}
+    {legenda&&<p>{legenda}</p>}{formula&&<code>{formula}</code>}{GUIA_METRICAS[rotulo]&&<details className="v8-metrica-ajuda"><summary>O que significa?</summary><p>{GUIA_METRICAS[rotulo]}</p></details>}
   </div>;
 }
 function Nota({children}){return <div className="v5-nota">{children}</div>;}
@@ -186,8 +217,16 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
         <Numero destaque rotulo="Reconhecimento de humano" valor={p100(espec)} legenda="De tudo que era humano, quanto foi corretamente reconhecido?" formula={`${q.ff} ÷ (${q.ff} + ${q.fv}) × 100`}/>
         <Numero destaque rotulo="Taxa de chamar algo de IA" valor={p100(taxaIA)} legenda="De todas as classificações, quantas receberam o rótulo IA?" formula={`(${q.vv} + ${q.fv}) ÷ ${N} × 100`}/></div>
       <div className="v5-grid"><Painel titulo="Mapa de calor dos acertos e confusões" sub="Tons mais intensos significam maior proporção na mesma origem verdadeira."><Matriz q={q}/></Painel>
-        <Painel titulo="Os três indicadores, lado a lado" sub="Escala comum de 0% a 100%; não confundir taxa de rotular IA com taxa de acerto.">
-          <div className="v5-grafico"><ResponsiveContainer width="100%" height={280}><BarChart data={faixaDiag} layout="vertical" margin={{top:8,right:28,bottom:8,left:16}}><CartesianGrid {...BASE_GRID} horizontal={false}/><XAxis type="number" domain={[0,100]} tickFormatter={x=>`${x}%`}/><YAxis type="category" dataKey="chave" width={145} tick={{fontSize:11}}/><Tooltip formatter={x=>[p100(x),'Indicador']} contentStyle={hoverStyle}/><Bar dataKey="valor" fill={COLORS[0]} radius={[0,7,7,0]}><LabelList dataKey="valor" position="right" formatter={p100}/></Bar></BarChart></ResponsiveContainer></div>
+        <Painel titulo="Entenda os três indicadores" sub="Cada linha representa UM resultado. A faixa colorida vai de 0% (nada) até 100% (tudo); as marcas de 25%, 50% e 75% não são dados novos.">
+          <div className="v8-tres-indicadores">{[
+            {nome:'Sensibilidade para IA',valor:sensibil,texto:'De tudo que era IA, quanto as pessoas reconheceram?',conta:`${q.vv} acertos ÷ ${ia} materiais IA × 100`},
+            {nome:'Reconhecimento de humano',valor:espec,texto:'De tudo que era humano, quanto foi reconhecido?',conta:`${q.ff} acertos ÷ ${humano} materiais humanos × 100`},
+            {nome:'Taxa de marcar IA',valor:taxaIA,texto:'De todas as respostas, em quantas escolheram IA? Não mede acerto.',conta:`${q.vv+q.fv} votos IA ÷ ${N} respostas × 100`}
+          ].map(x=><div className="v8-indicador" key={x.nome}>
+            <div className="v8-indicador-topo"><strong>{x.nome}</strong><b>{p100(x.valor)}</b></div>
+            <div className="v8-indicador-trilha" role="img" aria-label={`${x.nome}: ${p100(x.valor)} em uma escala de zero a cem`}><span style={{width:`${Math.max(0,Math.min(100,x.valor||0))}%`}}/></div>
+            <p>{x.texto}</p><details><summary>Ver de onde veio o número</summary><code>{x.conta} = {p100(x.valor)}</code></details>
+          </div>)}</div>
         </Painel></div>
       <Painel titulo="Confira cada uma das contas" sub="Os numeradores e denominadores vêm da matriz de confusão, não de estimativas.">
         <div className="v5-explicacoes">
@@ -232,6 +271,7 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
     {aba==='materiais'&&<RankingMateriais d={d} comparacoesDetalhes={comparacoesItens} comparacoesDisponiveis={comparacoesDisponiveis}/>}
     {aba==='calculos'&&<>
       <div className="v5-intro"><h2>Todas as contas, sem esconder as fórmulas</h2><p>Os resultados abaixo usam o recorte atual. Cada fórmula indica qual é a unidade de análise e mostra a operação com os números reais disponíveis.</p></div>
+      <details className="v8-glossario"><summary>Glossário simples: o que cada termo mede?</summary><div className="v8-glossario-grid">{Object.entries(GUIA_METRICAS).map(([nome,descricao])=><div key={nome}><strong>{nome}</strong><p>{descricao}</p></div>)}</div></details>
       <Painel titulo="Indicadores de reconhecimento"><div className="v5-explicacoes">
         <Explica titulo="Sensibilidade para IA" formula="VP ÷ (VP + FN) × 100" conta={`${q.vv} ÷ (${q.vv} + ${q.vf}) × 100`} resultado={p100(sensibil)} descricao="Proporção de conteúdos artificiais corretamente classificados. VP: IA marcada IA; FN: IA marcada humano."/>
         <Explica titulo="Reconhecimento de humano" formula="VN ÷ (VN + FP) × 100" conta={`${q.ff} ÷ (${q.ff} + ${q.fv}) × 100`} resultado={p100(espec)} descricao="Proporção de conteúdos humanos corretamente classificados. VN: humano marcado humano; FP: humano marcado IA."/>

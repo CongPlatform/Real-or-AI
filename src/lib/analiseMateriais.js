@@ -69,3 +69,13 @@ export function ordenarMateriais(itens, modo, minimo = 1) {
     (regra.classe === undefined || regra.classe === x.origem_ia))
     .sort((a,b) => regra.valor(b)-regra.valor(a) || b.n-a.n || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
+
+// Quatro cenários por modalidade: origem verdadeira × voto dado; desempate consistente.
+export function ordenarGrupo(itens,grupo,criterio,minimo,busca) {
+  const texto=busca.toLocaleLowerCase('pt-BR').trim();
+  const votos=x=>grupo.voto==='ia'?x.ia:x.humano;
+  const taxa=x=>grupo.voto==='ia'?x.pctIA:x.pctHumano;
+  return itens.filter(x=>x.origem_ia===grupo.verdadeiro && x.n>=minimo && votos(x)>0 &&
+    (!texto||x.nome.toLocaleLowerCase('pt-BR').includes(texto)))
+    .sort((a,b)=>(criterio==='percentual'?(taxa(b)-taxa(a)):(votos(b)-votos(a)))||b.n-a.n||votos(b)-votos(a)||a.nome.localeCompare(b.nome,'pt-BR'));
+}
