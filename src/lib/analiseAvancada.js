@@ -64,7 +64,10 @@ export function analisarAvancado(d, incluirPilotos = false) {
     const acertosPares = c.filter(r=>r.acertou).length;
     return { ...p, acertos, n_ind:a.length, pct_ind:pct(acertos,a.length),
       n_comp:c.length, acertosPares, pct_comp:pct(acertosPares,c.length),
-      estimativa_pct: p.estimativa == null || !a.length ? null : 100*p.estimativa/a.length,
+      // Só novas estimativas explicitamente registradas sobre 40 decisões podem
+      // ser comparadas à nota geral. Registros antigos (base desconhecida) ficam fora.
+      pct_geral: (a.length+c.length) ? pct(acertos+acertosPares,a.length+c.length) : null,
+      estimativa_pct: p.estimativa == null || Number(p.estimativa_base_decisoes) !== 40 ? null : 100*Number(p.estimativa)/40,
       tempo_med_s: mediana([...a,...c].map(r=>sec(r.tempo_ms))),
       duracao_teste_s: p.inicio && p.fim ? (new Date(p.fim) - new Date(p.inicio))/1000 : null };
   });
@@ -145,7 +148,7 @@ export function analisarAvancado(d, incluirPilotos = false) {
     notas:nota, comparacaoExata, comparacaoItens,
     tipo:relatorioTipo, quad, porFrame, porFrameComp, fTipo, audio, exportItens, difficult,
     composicao:{ IA:ri.filter(r=>r.origem_ia===true).length, real:ri.filter(r=>r.origem_ia===false).length },
-    viesConfianca:resumoParticipantes(pessoas.filter(p=>p.estimativa_pct!=null&&p.pct_ind!=null).map(p=>p.estimativa_pct-p.pct_ind)),
+    viesConfianca:resumoParticipantes(pessoas.filter(p=>p.estimativa_pct!=null&&p.pct_geral!=null).map(p=>p.estimativa_pct-p.pct_geral)),
     faixa:perfil('faixa',['Até 17','18–24','25–34','35–44','45–59','60+']),
   };
 }

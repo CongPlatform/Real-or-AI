@@ -58,6 +58,11 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
     'Metade das notas fica de cada lado da mediana; ela é menos influenciada por extremos.');
   metric('02 · Desempenho','Qual é o acerto descritivo nas 40 decisões?',media40,'20 classificações + 20 duplas por pessoa',`${amostra40} sessões completas das duas etapas`,
     'Nota mista: uma dupla só vale um acerto quando as duas peças foram reconhecidas. O acaso difere: 50% em item binário, 25% em dupla.');
+  graf('02 · Desempenho','Distribuição das notas: quartis e mediana','quartis',
+    p.map(x=>x.pct_ind).filter(Number.isFinite),`${p.length} participantes`,'Mostra mínimo, quartis, mediana e máximo sem ocultar a dispersão.');
+  add('02 · Desempenho','Como ficam os acertos nas 40 decisões?',{vis:'mosaico',valor:media40,
+    base:`${amostra40} participantes com 20 individuais e 20 comparações`,
+    descricao:'Cada quadrado corresponde a aproximadamente 1 ponto percentual da média geral; esta nota considera uma dupla correta apenas quando suas duas peças estão certas.'});
   const stats=[['Menor nota',notas.min],['Maior nota',notas.max],['Desvio padrão',notas.desvio],['Erro padrão',notas.se],
     ['Limite inferior do IC de 95%',notas.ic?.[0]],['Limite superior do IC de 95%',notas.ic?.[1]]];
   stats.forEach(([nome,valor])=>metric('02 · Desempenho',nome,valor,'porcentagem da nota individual',`${notas.n||0} participantes`,
@@ -91,6 +96,15 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
     'médias individuais por participante em cada modalidade','Cada barra usa apenas pessoas que avaliaram aquele formato.',{chaves:['acerto'],eixoMax:100});
   graf('04 · Formatos','Perfil conjunto das modalidades','radar',formatoRows(d.tipo||[],['acerto']),
     'quatro modalidades','Radar ilustrativo: modalidades são categorias, não dimensões contínuas.');
+  graf('04 · Formatos','Acurácia por formato: gráfico de pontos','pontos',formatoRows(d.tipo||[],['acerto']),
+    'média de acerto por participante em cada formato','Todos os pontos usam a mesma escala de 0% a 100%; diferença de pontos não significa diferença estatisticamente confirmada.',{chaves:['acerto']});
+  const mapaCalor=MODALIDADES.map(([tipo,nome])=>{
+    const rr=(d.ri||[]).filter(x=>x.tipo===tipo);
+    const calcular=ia=>{const x=rr.filter(y=>y.origem_ia===ia);return {n:x.length,acertos:x.filter(y=>y.acertou).length};};
+    return {nome,ia:calcular(true),humano:calcular(false)};
+  });
+  graf('04 · Formatos','Mapa de calor: IA e humano por modalidade','calor',mapaCalor,
+    `${(d.ri||[]).length} classificações individuais`, 'Compare o reconhecimento conforme a origem verdadeira. A cor representa porcentagem correta; cada célula mostra também a quantidade de respostas.');
   for(const m of d.tipo||[]){
     metric('04 · Formatos',`Taxa de acerto em ${m.nome.toLowerCase()}`,m.acerto,'média por participante nessa modalidade',
       `${m.n} respostas / ${m.participantes} pessoas`,'Intervalos por modalidade podem ser largos se poucas pessoas receberam esse formato.');
@@ -102,6 +116,8 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
   graf('05 · Enunciados','Como a formulação altera respostas e acertos?','multilinha',formatoRows(d.porFrame||[],['acerto','disseIa']),
     'respostas individuais com enquadramento registrado','Acerto e frequência de chamar IA não são a mesma coisa. Diferenças observadas não provam causalidade.',
     {chaves:['acerto','disseIa'],eixoMax:100});
+  graf('05 · Enunciados','Pontos: acerto e tendência de rotular IA','pontos',formatoRows(d.porFrame||[],['acerto','disseIa']),
+    'classificações com enquadramento registrado', 'As duas séries não medem a mesma coisa: uma é acerto, a outra é propensão a escolher IA.', {chaves:['acerto','disseIa']});
   for(const f of d.porFrame||[]){
     metric('05 · Enunciados',`Acerto: ${f.nome}`,f.acerto,'média de acerto por pessoa',`${f.n} respostas / ${f.participantes} pessoas`,
       'Pergunta muda o enquadramento, não o gabarito do conteúdo.');
@@ -143,7 +159,7 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
     `${confianca.length} participantes`, 'Cada ponto corresponde a uma pessoa; não implica que a confiança cause desempenho.');
   metric('07 · Escuta e confiança','Viés na estimativa da própria nota',d.viesConfianca?.media,
     'diferença em pontos percentuais',`${d.viesConfianca?.n||0} pessoas com estimativa`,
-    'A pergunta da estimativa pode referir-se às 40 decisões; confirme a equivalência do denominador antes de interpretar.',{vis:'numero'});
+    'Esta diferença compara o palpite e a nota real das mesmas 40 decisões, apenas para sessões com base da estimativa confirmada.',{vis:'numero'});
 
   // COMPARAÇÕES
   const ct=comps.total||{};
@@ -165,6 +181,14 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
     `${ct.n||0} duplas`, 'Duas séries diferentes: acerto de todas as peças e acerto item por item.',{chaves:['porcentagemExata','porcentagemPeca'],eixoMax:100});
   graf(COMP_PREFIX,'Acerto conforme a pergunta da Parte 2','multilinha',(comps.perguntas||[]).filter(x=>x.n>0),
     `${ct.n||0} duplas`, 'Compara o acerto integral e por peça conforme o enunciado.',{chaves:['porcentagemExata','porcentagemPeca'],eixoMax:100});
+  graf(COMP_PREFIX,'Radar da Parte 2: acerto por modalidade','radar',(comps.tipos||[]).map(x=>({
+    nome:x.nome,porcentagemExata:x.porcentagemExata,porcentagemPeca:x.porcentagemPeca})),
+    `${ct.n||0} duplas respondidas`, 'A linha roxa representa duplas totalmente corretas; a verde, classificações corretas por peça. Compare padrões, não magnitudes sem considerar a base.',
+    {chaves:['porcentagemExata','porcentagemPeca']});
+  graf(COMP_PREFIX,'Pontos da Parte 2: acerto por tipo de dupla','pontos',(comps.cenarios||[]).map(x=>({
+    nome:x.nome,porcentagemExata:x.porcentagemExata,porcentagemPeca:x.porcentagemPeca})),
+    `${ct.n||0} duplas respondidas`, 'Permite localizar as taxas de acerto no mesmo eixo percentual, por composição real da dupla.',
+    {chaves:['porcentagemExata','porcentagemPeca']});
   for(const x of comps.cenarios||[]){
     metric(COMP_PREFIX,`Dupla correta quando: ${x.nome}`,x.porcentagemExata,'acerto integral nesse cenário',
       `${x.exatas} duplas certas entre ${x.n} respostas`,x.explicacao||'Composição real dos dois conteúdos.');
@@ -213,6 +237,11 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
       {nome:'IA',valor:avaliados.filter(x=>x.origem_ia).length},
       {nome:'Humano',valor:avaliados.filter(x=>!x.origem_ia).length}],
       `${avaliados.length} materiais com votos`,'Não misture materiais cadastrados com exposições recebidas.');
+    graf('09 · Conteúdos',`${titulo}: nuvem de avaliações e votos IA`,'bolhas',avaliados,
+      `${avaliados.length} materiais avaliados`, 'Cada bolha é um material. Eixo horizontal = avaliações, vertical = porcentagem de votos IA; tamanho = exposição. Cor indica origem real.');
+    const principais=[...avaliados].filter(x=>x.n>=2).sort((a,b)=>b.n-a.n).slice(0,12);
+    graf('09 · Conteúdos',`${titulo}: pontos dos mais vistos`,'pontos',principais.map(x=>({nome:x.nome,acerto:x.pctAcerto})),
+      `${principais.length} materiais com pelo menos 2 votos`, 'Percentuais por material são exploratórios e podem variar muito quando a base é pequena.', {chaves:['acerto']});
     for(const g of CENARIOS){
       const sortedGroup=ordenarGrupo(itens,g,'votos',1,'');
       tab('09 · Conteúdos',`${titulo} · ${g.titulo}`,sortedGroup.map(x=>({nome:x.nome,n:x.n,votos:g.voto==='ia'?x.ia:x.humano,
