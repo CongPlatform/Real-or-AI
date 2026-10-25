@@ -199,10 +199,15 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
   async function piloto(p){setErro('');setMudando(p.id);try{const {error}=await supabase.rpc('admin_classificar_piloto_v4',{p_participante:p.id,p_excluir:!p.excluir_analise});if(error)throw error;await atualizar?.();}catch(e){setErro(e.message||'Falha ao classificar piloto.');}finally{setMudando('');}}
   return <div className="dash dash-v5">
     <div className="v15-apresentar-barra">
-      <div><strong>Apresentação dos resultados</strong><span>Slides visuais, um indicador por tela, com gráficos e explicação de cada dado.</span></div>
-      <button className="v15-abrir-apresentacao" type="button" onClick={()=>{setApresentando(true);document.documentElement.requestFullscreen?.().catch(()=>{});}}>▶ Modo apresentação</button>
+      <div><strong>Apresentação dos resultados</strong><span>Todas as seções, todos os gráficos e os materiais avaliados, em slides com índice navegável.</span></div>
+      <button className="v15-abrir-apresentacao" type="button" onClick={()=>{
+        // Ativação direta pelo clique para navegadores que permitem tela cheia.
+        const tentativa = document.documentElement.requestFullscreen?.();
+        Promise.resolve(tentativa).catch(()=>{});
+        setApresentando(true);
+      }}>▶ Modo apresentação</button>
     </div>
-    {apresentando&&<ApresentacaoDados d={d} comparacoes={comparacoesAnalise} media40={media40} amostra40={sessoesComDuasPartes.length} atual={atual} aoFechar={()=>setApresentando(false)}/>}
+    {apresentando&&<ApresentacaoDados d={d} comparacoes={comparacoesAnalise} comparacoesDetalhes={comparacoesItens} media40={media40} amostra40={sessoesComDuasPartes.length} atual={atual} aoFechar={()=>setApresentando(false)}/>}
     <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Resultado oficial usa somente sessões completas do protocolo de 40 decisões (20 + 20).</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
     <nav className="v5-abas" aria-label="Seções das estatísticas">{TABS.map(([key,label])=><button type="button" key={key} aria-current={aba===key?'page':undefined} className={aba===key?'ativa':''} onClick={()=>setAba(key)}>{label}</button>)}</nav>
     <div className="v5-filtro"><label><input type="checkbox" checked={incluirPilotos} onChange={e=>setIncluirPilotos(e.target.checked)}/> Incluir sessões piloto na análise</label><span>{incluirPilotos?'Exibindo também pilotos completos. Não usar esta opção no relatório final.':'Sessões piloto excluídas dos indicadores oficiais.'}</span></div>
