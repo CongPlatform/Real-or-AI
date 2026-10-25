@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TIPOS } from '../lib/opcoes';
 import { analisarTextosEmLote } from '../lib/textosLote';
@@ -9,6 +9,7 @@ import RevisarTextosExistentes from './RevisarTextosExistentes';
 import NormalizarAudios from './NormalizarAudios';
 import ImportarComparacoesZip from './ImportarComparacoesZip';
 import ImportarComparacoesTxt from './ImportarComparacoesTxt';
+import { consultarInventario, agruparInventario } from '../lib/inventarioComparacoes';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -331,6 +332,25 @@ function Editor({ it, onChange, tipo, rotulo }) {
 }
 
 export default function Conteudos({ lista, comparacoes, recarregar }) {
+  const [inventario, setInventario] = useState({ carregando: true, dados: null, erro: '' });
+  const consultar = useCallback(async () => {
+    setInventario((atual) => ({ ...atual, carregando: true, erro: '' }));
+    try {
+      const dados = await consultarInventario(supabase);
+      setInventario({ carregando: false, dados, erro: '' });
+    } catch (e) {
+      setInventario({ carregando: false, dados: null, erro: e.message || 'Falha ao consultar inventário.' });
+    }
+  }, []);
+  // Toda entrada na aba Conteúdos força leitura direta das tabelas, sem depender
+  // da RPC admin_dados nem de um evento em tempo real de respostas.
+  useEffect(() => { void consultar(); }, [consultar]);
+  async function atualizarTudo() {
+    await Promise.allSettled([recarregar(), consultar()]);
+  }
+  const leituraOk = Boolean(inventario.dados);
+  const listaAtual = inventario.dados?.conteudos || lista;
+  const comparacoesAtual = inventario.dados?.comparacoes || comparacoes;
   const [modo, setModo] = useState('indiv');
   const [tipo, setTipo] = useState('imagem');
   const [titulo, setTitulo] = useState('');
@@ -373,7 +393,7 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       if (error) throw error;
       setResultadoExclusao(`${data.textos_excluidos} texto(s) apagado(s) do Supabase. ${data.respostas_excluidas} respostas vinculadas removidas. ${data.sessoes_afetadas} sessões excluídas da análise oficial.`);
       setPreviaTextos(null); setConfirmacaoTextos(''); setForcarTextos(false);
-      await recarregar();
+      await atualizarTudo();
     } catch(e) {
       setResultadoExclusao('Exclusão NÃO concluída: '+(e.message||'Erro inesperado')+'. Nenhuma exclusão parcial é confirmada. Confira a prévia novamente.');
     } finally {setExcluindoTextos(false);}
@@ -400,7 +420,7 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
           { comparacao_id: compId, posicao: k + 1 });
       }
       setItens([vazio(), vazio()]); setTitulo(''); form.reset();
-      setMsg('Adicionado.'); recarregar();
+      setMsg('Adicionado.'); await atualizarTudo();
     } catch (err) {
       if (compId) await supabase.from('comparacoes').delete().eq('id', compId);
       setMsg(err.message || 'Erro ao salvar.');
@@ -410,14 +430,12 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
   async function apagar(tabela, id) {
     if (!confirm('Apagar? As respostas dadas a isso também serão apagadas.')) return;
     const { error } = await supabase.from(tabela).delete().eq('id', id);
-    if (error) setMsg(error.message); else recarregar();
+    if (error) setMsg(error.message); else await atualizarTudo();
   }
 
-  const indiv = lista.filter((c) => !c.comparacao_id);
-  const comps = comparacoes.map((c) => {
-    const it = lista.filter((x) => x.comparacao_id === c.id);
-    return { ...c, nIA: it.filter((x) => x.eh_ia).length, nItens: it.length };
-  });
+  const inventarioAgrupado = agruparInventario(listaAtual, comparacoesAtual);
+  const indiv = inventarioAgrupado.individuais;
+  const comps = inventarioAgrupado.comparacoes;
 
   return (
     <div className="grade">
@@ -441,37 +459,50 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
         </form>
       </section>
 
-      <ImportarComparacoesTxt recarregar={recarregar} />
+      <ImportarComparacoesTxt recarregar={atualizarTudo} />
 
-      <ImportarComparacoesZip recarregar={recarregar} />
+      <ImportarComparacoesZip recarregar={atualizarTudo} />
 
-      <ImportacaoEmLote recarregar={recarregar} />
+      <ImportacaoEmLote recarregar={atualizarTudo} />
 
-      <OtimizarImagensExistentes recarregar={recarregar} />
+      <OtimizarImagensExistentes recarregar={atualizarTudo} />
 
-      <ImportacaoTextosEmLote recarregar={recarregar} />
+      <ImportacaoTextosEmLote recarregar={atualizarTudo} />
 
-      <RevisarTextosExistentes recarregar={recarregar} />
+      <RevisarTextosExistentes recarregar={atualizarTudo} />
 
-      <ImportacaoMidiasEmLote tipo="audio" recarregar={recarregar} />
+      <ImportacaoMidiasEmLote tipo="audio" recarregar={atualizarTudo} />
 
-      <NormalizarAudios recarregar={recarregar} />
+      <NormalizarAudios recarregar={atualizarTudo} />
 
-      <ImportacaoMidiasEmLote tipo="video" recarregar={recarregar} />
+      <ImportacaoMidiasEmLote tipo="video" recarregar={atualizarTudo} />
 
       <section className="painel">
-        <h2>Cobertura por tipo</h2>
+        <div className="comparacoes-contagem-cabecalho">
+          <h2>Cobertura por tipo</h2>
+          <button type="button" className="chip" onClick={atualizarTudo} disabled={inventario.carregando}>
+            {inventario.carregando ? 'Consultando…' : 'Atualizar contagens'}
+          </button>
+        </div>
+        {inventario.carregando && <p className="mut" role="status">Conferindo comparações e gabaritos diretamente no Supabase…</p>}
+        {inventario.erro && <p className="erro" role="alert">Não foi possível conferir as comparações diretamente. {inventario.erro} Os números de comparação estão indisponíveis até corrigir a leitura.</p>}
+        {leituraOk && <p className="mut" role="status">Contagem conferida nas tabelas do Supabase. Inclui comparações ativas e inativas.</p>}
         <div className="rolagem">
           <table>
             <thead><tr><th>Tipo</th><th>Individuais</th><th>Comparações</th></tr></thead>
             <tbody>
               {Object.entries(TIPOS).map(([k, v]) => {
                 const i = indiv.filter((c) => c.tipo === k), cc = comps.filter((c) => c.tipo === k);
+                const incompletas = cc.filter((c) => !c.completo).length;
                 return (
                   <tr key={k}>
                     <td><b>{v}</b></td>
-                    <td>{i.length} ({i.filter((c) => c.eh_ia).length} IA · {i.filter((c) => !c.eh_ia).length} real)</td>
-                    <td>{cc.length} ({[0, 1, 2].map((q) => `${cc.filter((c) => c.nIA === q).length} ${CEN[q]}`).join(' · ')})</td>
+                    <td>{!leituraOk ? '—' : `${i.length} (${i.filter((c) => c.eh_ia === true).length} IA · ${i.filter((c) => c.eh_ia === false).length} real${i.some((c) => c.eh_ia === null) ? ` · ${i.filter((c) => c.eh_ia === null).length} sem gabarito` : ''})`}</td>
+                    <td className="cobertura-resumo">{!leituraOk ? '— (aguardando consulta)' : <div className="cobertura-valores">
+                      <strong>{cc.length} comparação(ões)</strong>
+                      <span>{[0, 1, 2].map((q) => `${cc.filter((c) => c.completo && c.nIA === q).length} ${CEN[q]}`).join(' · ')}</span>
+                      <small>{cc.filter((c) => c.ativo).length} ativa(s){incompletas ? ` · ${incompletas} incompleta(s)` : ''}</small>
+                    </div>}</td>
                   </tr>
                 );
               })}
@@ -532,23 +563,25 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
               {indiv.map((c) => (
                 <tr key={c.id}>
                   <td>{TIPOS[c.tipo]}</td><td>{c.titulo || '—'}</td>
-                  <td><span className={'sel ' + (c.eh_ia ? 'ia' : 'real')}>{c.eh_ia ? 'IA' : 'Real'}</span></td>
+                  <td><span className={'sel ' + (c.eh_ia === true ? 'ia' : 'real')}>{c.eh_ia === null ? 'Sem gabarito' : c.eh_ia ? 'IA' : 'Real'}</span></td>
                   <td><button className="link" onClick={() => apagar('conteudos', c.id)}>Apagar</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <h2 style={{ marginTop: 20 }}>Comparações ({comps.length})</h2>
+        <h2 style={{ marginTop: 20 }}>Comparações ({leituraOk ? comps.length : '—'})</h2>
+        {leituraOk && comps.length === 0 && <p className="mut">O Supabase retornou zero registros na tabela <code>comparacoes</code>. Se você já importou comparações, confira o resultado da importação e o projeto Supabase conectado. O arquivo <code>supabase/DIAGNOSTICO_V16_2_CONTAGEM_COMPARACOES.sql</code> permite confirmar sem alterar dados.</p>}
+        {leituraOk && inventarioAgrupado.orfaos.length > 0 && <p className="erro">Foram encontrados {inventarioAgrupado.orfaos.length} ID(s) de comparação nos conteúdos sem registro correspondente em comparacoes.</p>}
         <div className="rolagem">
           <table>
             <thead><tr><th>Tipo</th><th>Itens</th><th>Gabarito</th><th /></tr></thead>
             <tbody>
-              {comps.map((c) => (
+              {leituraOk && comps.map((c) => (
                 <tr key={c.id}>
-                  <td>{TIPOS[c.tipo]}</td>
-                  <td>{lista.filter((x) => x.comparacao_id === c.id).map((x) => x.titulo || '—').join(' | ')}</td>
-                  <td><span className="sel real">{CEN[c.nIA]}</span></td>
+                  <td>{TIPOS[c.tipo]}{!c.ativo ? ' (inativa)' : ''}</td>
+                  <td>{c.itens.map((x) => x.titulo || '—').join(' | ') || 'Nenhum item vinculado'}</td>
+                  <td><span className="sel real">{c.completo ? CEN[c.nIA] : `Incompleta (${c.nItens}/2 itens; ${c.nSemGabarito} sem gabarito)`}</span></td>
                   <td><button className="link" onClick={() => apagar('comparacoes', c.id)}>Apagar</button></td>
                 </tr>
               ))}

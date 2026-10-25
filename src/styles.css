@@ -758,3 +758,12 @@ details p{line-height:1.65;font-size:.92rem}
 .v18-mosaico{display:flex;flex-direction:column;gap:25px;width:min(100%,560px);align-items:center}.v18-mosaico-celulas{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;width:min(100%,430px);aspect-ratio:1}.v18-mosaico-celulas span{border:1.5px solid var(--ink);border-radius:4px;background:#E9E5F4}.v18-mosaico-celulas span.aceso{background:var(--ia)}
 .v18-mosaico>p{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;color:var(--mut);margin:0}.v18-mosaico b{font-size:clamp(2.3rem,4.3vw,4.8rem);line-height:1;color:var(--ink)}
 @media(max-width:580px){.v18-pontos-linha{grid-template-columns:85px 1fr 55px;gap:8px}.v18-pontos-escala{margin-left:92px;margin-right:58px;font-size:.62rem}.v18-ponto{width:15px;height:15px}.v18-pontos-linha>small{font-size:.63rem}.v18-calor-linha{gap:4px}.v18-calor-cel{min-height:66px;padding:4px}.v18-calor-cel>span{font-size:.58rem}.v18-mosaico{gap:9px}}
+
+/* V16.2: consulta confiável de comparação no painel admin */
+.comparacoes-contagem-cabecalho{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.comparacoes-contagem-cabecalho h2{margin:0}
+
+.cobertura-resumo{white-space:normal;min-width:220px}
+.cobertura-valores{display:flex;flex-direction:column;gap:3px;line-height:1.45}
+.cobertura-valores span{white-space:normal;overflow-wrap:anywhere}
+.cobertura-valores small{opacity:.7}
