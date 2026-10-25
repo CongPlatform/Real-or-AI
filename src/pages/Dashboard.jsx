@@ -9,6 +9,7 @@ import { analisarAvancado, ENQUADRAMENTOS, TIPOS_ANALISE, resumoParticipantes } 
 import { criarEvolucao, contarDistribuicao, PREVISAO_INICIAL, FORCA_INICIAL } from '../lib/previsaoPesquisa';
 import { supabase } from '../lib/supabase';
 import RankingMateriais from '../components/RankingMateriais';
+import ApresentacaoDados from '../components/ApresentacaoDados';
 import { analisarComparacoes } from '../lib/analiseComparacoes';
 
 const META=100;
@@ -160,6 +161,7 @@ function ResumoFonte({d}){
 export default function Dashboard({dados,atual,avancado,atualizar,comparacoesItens=[],comparacoesDisponiveis=false}){
   const [incluirPilotos,setIncluirPilotos]=useState(false);
   const [aba,setAba]=useState('visao');
+  const [apresentando,setApresentando]=useState(false);
   const [mudando,setMudando]=useState('');
   const [erro,setErro]=useState('');
   const [perfilTipo,setPerfilTipo]=useState('faixa');
@@ -196,6 +198,11 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
   const compCSV=d.rc.map(r=>({participante:r.participante_id,comparacao:r.comparacao_id,tipo:r.tipo,enquadramento:r.enquadramento,acertou:r.acertou,acertos_itens:r.acertos_itens,n_itens:r.n_itens,n_reais_ia:r.n_reais_ia,n_marcados_ia:r.n_marcados_ia,tempo_ms:r.tempo_ms,data:r.data}));
   async function piloto(p){setErro('');setMudando(p.id);try{const {error}=await supabase.rpc('admin_classificar_piloto_v4',{p_participante:p.id,p_excluir:!p.excluir_analise});if(error)throw error;await atualizar?.();}catch(e){setErro(e.message||'Falha ao classificar piloto.');}finally{setMudando('');}}
   return <div className="dash dash-v5">
+    <div className="v15-apresentar-barra">
+      <div><strong>Apresentação dos resultados</strong><span>Slides visuais, um indicador por tela, com gráficos e explicação de cada dado.</span></div>
+      <button className="v15-abrir-apresentacao" type="button" onClick={()=>{setApresentando(true);document.documentElement.requestFullscreen?.().catch(()=>{});}}>▶ Modo apresentação</button>
+    </div>
+    {apresentando&&<ApresentacaoDados d={d} comparacoes={comparacoesAnalise} media40={media40} amostra40={sessoesComDuasPartes.length} atual={atual} aoFechar={()=>setApresentando(false)}/>}
     <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Resultado oficial usa somente sessões completas do protocolo de 40 decisões (20 + 20).</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
     <nav className="v5-abas" aria-label="Seções das estatísticas">{TABS.map(([key,label])=><button type="button" key={key} aria-current={aba===key?'page':undefined} className={aba===key?'ativa':''} onClick={()=>setAba(key)}>{label}</button>)}</nav>
     <div className="v5-filtro"><label><input type="checkbox" checked={incluirPilotos} onChange={e=>setIncluirPilotos(e.target.checked)}/> Incluir sessões piloto na análise</label><span>{incluirPilotos?'Exibindo também pilotos completos. Não usar esta opção no relatório final.':'Sessões piloto excluídas dos indicadores oficiais.'}</span></div>

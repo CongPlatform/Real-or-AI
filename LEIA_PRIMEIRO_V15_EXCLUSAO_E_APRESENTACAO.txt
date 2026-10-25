@@ -1,0 +1,69 @@
+REAL OU IA? — PATCH V15
+=======================
+BASE: projeto completo v14 (40 decisões: 20 individuais + 20 comparações).
+
+O QUE MUDA
+1. Admin > Conteúdos > Excluir textos definitivamente:
+   - Exclusão verdadeira na tabela public.conteudos, inclusive textos inativos e de comparações;
+   - Filtros: TODOS, apenas IA ou apenas humanos/reais;
+   - Prévia REAL calculada no Supabase: textos, comparações, sessões e respostas vinculadas;
+   - Confirmação digitada, com etapa adicional se houver respostas/sorteios envolvidos;
+   - Preserva conteúdos de imagens, áudios e vídeos;
+   - Pares atingidos são desativados; pares vazios, removidos;
+   - Sessões afetadas ficam como piloto/fora da análise oficial.
+   - IMPORTANTE: respostas e rodadas vinculadas a textos excluídos também serão excluídas
+     se você confirmar a exclusão forçada. Sessões que estiverem em andamento poderão
+     ficar inválidas e precisarão ser reiniciadas. Faça isso antes da coleta oficial.
+   - NÃO remove os arquivos de Storage: textos são armazenados na coluna texto.
+2. Admin > Estatísticas > Modo apresentação:
+   - Slides em tela cheia, um indicador ou comparação visual por vez;
+   - Gráficos para: participantes, acerto individual, nota mista 40 decisões,
+     sensibilidade IA, reconhecimento humano, tendência de rotular IA,
+     matriz de confusão, modalidades, acerto das duplas, cenários, evolução;
+   - Setas esquerda/direita, PageUp/Down, Home/End; Esc fecha;
+   - Botões anterior/próximo/saída e Fullscreen nativo (quando suportado);
+   - Segue o filtro vigente de sessões piloto;
+   - Mostra tamanho da amostra e explicação para cada medida.
+
+INSTALAÇÃO
+A) Faça backup do banco e do projeto antes de instalar.
+B) Supabase > SQL Editor: execute o arquivo
+   supabase/PATCH_EXCLUSAO_TEXTOS_V15.sql
+   (Este comando INSTALA FUNÇÕES; NÃO exclui textos.)
+C) Copie o conteúdo do ZIP PATCH para dentro da raiz do seu projeto,
+   substituindo os arquivos listados abaixo.
+D) Na pasta do projeto rode:
+   npm install
+   npm run build
+   git add .
+   git commit -m "Corrige exclusao de textos e adiciona modo apresentacao"
+   git push
+E) No site: Admin > Conteúdos, escolha o filtro e clique em "Consultar quantidade".
+   Leia o impacto. Se houver sessões vinculadas, só force depois de salvar backup
+   e compreender que respostas e rodadas dessas questões serão eliminadas.
+F) No Admin > Estatísticas clique "Modo apresentação".
+
+ARQUIVOS DO PATCH
+src/components/Conteudos.jsx
+src/components/ApresentacaoDados.jsx (novo)
+src/pages/Dashboard.jsx
+src/styles.css
+supabase/PATCH_EXCLUSAO_TEXTOS_V15.sql (novo)
+TESTE_V15_PATCH.mjs (novo)
+LEIA_PRIMEIRO_V15_EXCLUSAO_E_APRESENTACAO.txt
+
+CONFERÊNCIA APÓS APAGAR
+No SQL Editor, para conferir o estoque:
+SELECT tipo, count(*) AS total FROM public.conteudos GROUP BY tipo ORDER BY tipo;
+
+EXTRA: este patch NÃO modifica o sorteio do protocolo 20+20. Se apagar muitos
+textos e não restar estoque suficiente para novas sessões, precisará cadastrar
+novos textos antes de retomar a coleta.
+
+VALIDAÇÃO FEITA
+- Testes existentes v14, 40 decisões, comparações, painel: passaram.
+- Novo teste estático v15: passou.
+- Sintaxe JSX/TS verificada sem erros de parse.
+- O build Vite completo NÃO pôde ser rodado neste ambiente por ausência de
+  dependências e indisponibilidade de acesso ao registro npm.
+- SQL precisa ser executado e validado no seu Supabase real antes de publicar.

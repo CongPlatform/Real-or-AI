@@ -338,17 +338,44 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
   const [msg, setMsg] = useState('');
   const [classeExcluir, setClasseExcluir] = useState('todos');
   const [excluindoTextos, setExcluindoTextos] = useState(false);
+  const [previaTextos, setPreviaTextos] = useState(null);
+  const [carregandoPrevia, setCarregandoPrevia] = useState(false);
+  const [forcarTextos, setForcarTextos] = useState(false);
+  const [confirmacaoTextos, setConfirmacaoTextos] = useState('');
+  const [resultadoExclusao, setResultadoExclusao] = useState('');
+  const fraseObrigatoria = forcarTextos ? 'EXCLUIR TEXTOS E RESPOSTAS' : 'EXCLUIR TEXTOS';
+
+  async function consultarExclusao() {
+    setCarregandoPrevia(true); setPreviaTextos(null); setResultadoExclusao('');
+    setForcarTextos(false); setConfirmacaoTextos('');
+    try {
+      const {data,error} = await supabase.rpc('admin_previa_exclusao_textos_v15',{p_classe:classeExcluir});
+      if (error) throw error;
+      setPreviaTextos(data);
+    } catch(e) {
+      setResultadoExclusao('Erro ao consultar Supabase: '+(e.message||'Falha inesperada')+'. Execute o SQL v15 primeiro.');
+    } finally {setCarregandoPrevia(false);}
+  }
 
   async function excluirTextos() {
-    const quantidade = lista.filter(c => c.tipo === 'texto' && (classeExcluir === 'todos' || (classeExcluir === 'ia') === !!c.eh_ia)).length;
-    if (!quantidade) return setMsg('Não há textos para este filtro.');
-    if (window.prompt(`Você está prestes a apagar ${quantidade} texto(s), incluindo possíveis pares. Isso NÃO pode ser desfeito. Digite EXCLUIR TEXTOS:`) !== 'EXCLUIR TEXTOS') return;
-    setExcluindoTextos(true); setMsg('');
+    if (!previaTextos || !previaTextos.textos) return;
+    if (confirmacaoTextos !== fraseObrigatoria) return;
+    if (previaTextos.sessoes_afetadas > 0 && !forcarTextos) return;
+    setExcluindoTextos(true); setResultadoExclusao('');
     try {
-      const {data,error} = await supabase.rpc('admin_excluir_textos_v10',{p_classe:classeExcluir});
+      const {data,error} = await supabase.rpc('admin_excluir_textos_v15',{
+        p_classe:classeExcluir,
+        p_confirmacao:confirmacaoTextos,
+        p_quantidade_esperada:previaTextos.textos,
+        p_forcar:forcarTextos,
+      });
       if (error) throw error;
-      setMsg(`${data} texto(s) excluído(s).`); recarregar();
-    } catch(e) {setMsg('Não foi possível excluir: '+e.message);} finally {setExcluindoTextos(false);}
+      setResultadoExclusao(`${data.textos_excluidos} texto(s) apagado(s) do Supabase. ${data.respostas_excluidas} respostas vinculadas removidas. ${data.sessoes_afetadas} sessões excluídas da análise oficial.`);
+      setPreviaTextos(null); setConfirmacaoTextos(''); setForcarTextos(false);
+      await recarregar();
+    } catch(e) {
+      setResultadoExclusao('Exclusão NÃO concluída: '+(e.message||'Erro inesperado')+'. Nenhuma exclusão parcial é confirmada. Confira a prévia novamente.');
+    } finally {setExcluindoTextos(false);}
   }
 
   const setItem = (k) => (p) => setItens((a) => a.map((x, n) => (n === k ? { ...x, ...p } : x)));
@@ -447,15 +474,46 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
         </div>
       </section>
 
-      <section className="painel larga">
-        <h2>Excluir textos em lote</h2>
-        <div className="excluir-textos-lote">
-          <p>Exclui textos IA, textos humanos ou todos os textos, sem alterar imagens, áudios ou vídeos. Se existirem respostas vinculadas, será necessário limpar os dados de testes antes. As exclusões são irreversíveis.</p>
-          <label htmlFor="classe-textos-excluir">Textos a excluir</label>
-          <select id="classe-textos-excluir" value={classeExcluir} onChange={e=>setClasseExcluir(e.target.value)}>
-            <option value="todos">Todos os textos</option><option value="ia">Somente textos de IA</option><option value="humano">Somente textos humanos</option>
+      <section className="painel larga" aria-labelledby="titulo-exclusao-textos">
+        <h2 id="titulo-exclusao-textos">Excluir textos definitivamente</h2>
+        <div className="excluir-textos-lote v15-exclusao">
+          <p>Remove os textos <strong>do banco de dados</strong>, incluindo textos individuais e de comparações. Imagens, áudios e vídeos são preservados. A instalação do SQL não exclui nada.</p>
+          <label htmlFor="classe-textos-excluir"><strong>Escolha o grupo</strong></label>
+          <select id="classe-textos-excluir" value={classeExcluir} disabled={excluindoTextos||carregandoPrevia}
+            onChange={e=>{setClasseExcluir(e.target.value);setPreviaTextos(null);setConfirmacaoTextos('');setForcarTextos(false);setResultadoExclusao('');}}>
+            <option value="todos">Todos os textos (IA e humanos)</option>
+            <option value="ia">Somente textos de IA</option>
+            <option value="humano">Somente textos humanos/reais</option>
           </select>
-          <button type="button" className="cta" disabled={excluindoTextos} onClick={excluirTextos}>{excluindoTextos?'Excluindo…':'Excluir textos selecionados'}</button>
+          <button type="button" className="chip v15-previa-botao" onClick={consultarExclusao} disabled={carregandoPrevia||excluindoTextos}>
+            {carregandoPrevia?'Consultando o banco…':'1. Consultar quantidade e impacto no Supabase'}
+          </button>
+          {previaTextos&&<div className="v15-exclusao-previa" aria-live="polite">
+            <strong>Prévia confirmada pelo banco</strong>
+            <div className="v15-contagens">
+              <span><b>{previaTextos.textos}</b> texto(s)</span>
+              <span><b>{previaTextos.comparacoes}</b> comparação(ões)</span>
+              <span><b>{previaTextos.sessoes_afetadas}</b> sessão(ões) vinculadas</span>
+              <span><b>{previaTextos.respostas_individuais+previaTextos.respostas_comparacoes}</b> resposta(s) vinculadas</span>
+            </div>
+            {previaTextos.textos_restantes_na_mesma_dupla>0&&<p className="mut">Alguns pares mistos perderão uma peça e ficarão desativados; os outros textos não serão apagados.</p>}
+            {previaTextos.sessoes_em_andamento>0&&<p className="erro">Atenção: {previaTextos.sessoes_em_andamento} sessão(ões) em andamento serão afetadas. Faça a exclusão antes de abrir a pesquisa ao público.</p>}
+            {previaTextos.sessoes_afetadas>0&&<label className="v15-check-destrutivo">
+              <input type="checkbox" checked={forcarTextos} onChange={e=>{setForcarTextos(e.target.checked);setConfirmacaoTextos('');}}/>
+              <span>Entendo que as respostas/rodadas vinculadas serão excluídas e as sessões afetadas serão marcadas fora da análise oficial. Fiz backup.</span>
+            </label>}
+            {previaTextos.textos>0&&<>
+              <label htmlFor="confirmacao-textos-v15">2. Digite <strong>{fraseObrigatoria}</strong> para confirmar</label>
+              <input id="confirmacao-textos-v15" autoComplete="off" spellCheck="false" value={confirmacaoTextos} onChange={e=>setConfirmacaoTextos(e.target.value)} placeholder={fraseObrigatoria}/>
+              <button type="button" className="cta v15-botao-perigo" onClick={excluirTextos}
+                disabled={excluindoTextos || confirmacaoTextos!==fraseObrigatoria || (previaTextos.sessoes_afetadas>0&&!forcarTextos)}>
+                {excluindoTextos?'Excluindo no Supabase…':`Excluir definitivamente ${previaTextos.textos} texto(s)`}
+              </button>
+            </>}
+            {!previaTextos.textos&&<p>Não há textos desse grupo no banco.</p>}
+          </div>}
+          {resultadoExclusao&&<p role="status" className="v15-resultado-exclusao">{resultadoExclusao}</p>}
+          <p className="mut">A exclusão é irreversível. Faça um backup antes. Não é necessário apagar participantes inteiros para remover textos, mas qualquer sessão vinculada deixará de ser válida para o relatório oficial.</p>
         </div>
       </section>
 
