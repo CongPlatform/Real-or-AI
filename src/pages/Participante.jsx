@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes';
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
+import { idsEscolhidosComoIA } from '../lib/respostaComparacao';
 import { prepararImagensDaSessao, anteciparProximasImagens } from '../lib/precarregarMidias';
 import { prepararProximoAudio } from '../lib/precarregarAudios';
 
@@ -62,7 +63,7 @@ function Wizard({ onFim, busy, erro }) {
           <p className="inicio-chamada">Você consegue distinguir conteúdos criados por pessoas daqueles produzidos por inteligência artificial?</p>
           <div className="inicio-fatos" aria-label="Como funciona">
             <span><strong>6</strong> perguntas iniciais</span>
-            <span><strong>30</strong> decisões</span>
+            <span><strong>40</strong> decisões</span>
             <span><strong>4</strong> formatos</span>
           </div>
           <div className="inicio-definicao">
@@ -158,37 +159,60 @@ function enunciado(individual, origem, tipo) {
 }
 
 function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
-  const [m, setM] = useState({});
+  const [escolha, setEscolha] = useState(null);
   const t0 = useRef(performance.now());
   const itens = rodada.conteudos;
-  const pronto = itens.every((c) => m[c.id] !== undefined);
-  const rotulos = rotulosDaPergunta(rodada.enquadramento);
+  // O enunciado determina qual origem se pede; o RPC SEMPRE recebe IDs marcados IA.
+  const buscandoHumanos = rodada.enquadramento === 'humano';
+  const alvo = buscandoHumanos ? 'produzidos por humanos' : 'feitos por IA';
+  const nome = NOMES_PLURAL[rodada.tipo] || 'conteúdos';
+  const feminino = rodada.tipo === 'imagem';
+  const destes = feminino ? 'destas' : 'destes';
+  const pergunta = buscandoHumanos
+    ? `Quais ${destes} ${nome} foram ${feminino ? 'produzidas' : 'produzidos'} por pessoas?`
+    : `Quais ${destes} ${nome} foram ${feminino ? 'geradas' : 'gerados'} por IA?`;
+  const escolhas = [
+    { valor: 'nenhum', titulo: 'Nenhum dos dois', indices: [] },
+    { valor: 'primeiro', titulo: 'Somente o conteúdo 1', indices: [0] },
+    { valor: 'segundo', titulo: 'Somente o conteúdo 2', indices: [1] },
+    { valor: 'ambos', titulo: 'Ambos os conteúdos', indices: [0,1] },
+  ];
+  function confirmar() {
+    if (escolha === null) return;
+    const idsIA = idsEscolhidosComoIA(itens, escolha, rodada.enquadramento);
+    onConfirm(idsIA, Math.round(performance.now() - t0.current));
+  }
   return (
     <div className="comp">
       <header className="topo">
         <div className="barra"><i style={{ width: `${(n / total) * 100}%` }} /></div>
         <span>{n + 1}/{total}</span>
       </header>
-      <div className="bloco-pergunta"><span className="bloco-pergunta-etiqueta">PARTE 2 DE 2 · COMPARE E DECIDA</span><h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2></div>
-      <p className="mut">Avalie cada conteúdo separadamente. Ambos podem ter a mesma origem ou origens diferentes.</p>
+      <div className="bloco-pergunta">
+        <span className="bloco-pergunta-etiqueta">PARTE 2 DE 2 · COMPARE E DECIDA</span>
+        <h2 className="enunciado-teste">{pergunta}</h2>
+      </div>
+      <p className="mut">Escolha quantos conteúdos correspondem à pergunta. Pode ser nenhum, apenas um ou ambos.</p>
       <div className="comp-grade">
         {itens.map((c, k) => (
           <div className="comp-item" key={c.id}>
             <span className="tag">Conteúdo {k + 1}</span>
             <div className="conteudo"><Midia item={c} /></div>
-            <div className="escolha">
-              <button className={'op ia' + (m[c.id] === true ? ' on' : '')}
-                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: true }))}>{rotulos.ia}</button>
-              <button className={'op real' + (m[c.id] === false ? ' on' : '')}
-                disabled={busy} onClick={() => setM((x) => ({ ...x, [c.id]: false }))}>{rotulos.humano}</button>
-            </div>
           </div>
         ))}
       </div>
+      <div className="comp-escolhas" role="group" aria-label={`Escolha quais ${nome} são ${alvo}`}>
+        {escolhas.map(op => (
+          <button type="button" key={op.valor} disabled={busy}
+            className={'comp-escolha' + (escolha === op.valor ? ' on' : '')}
+            aria-pressed={escolha === op.valor} onClick={() => setEscolha(op.valor)}>
+            {op.titulo}
+          </button>
+        ))}
+      </div>
       {erro && <p className="erro" role="alert">{erro}</p>}
-      <button className="cta" disabled={!pronto || busy}
-        onClick={() => onConfirm(itens.filter((c) => m[c.id]).map((c) => c.id), Math.round(performance.now() - t0.current))}>
-        {busy ? 'Salvando…' : 'Confirmar'}
+      <button className="cta" disabled={escolha === null || busy} onClick={confirmar}>
+        {busy ? 'Salvando…' : 'Confirmar comparação'}
       </button>
     </div>
   );
@@ -308,6 +332,7 @@ export default function Participante() {
   const [j, setJ] = useState(0);
   const [total, setTotal] = useState(0);
   const [jaRespondidas, setJaRespondidas] = useState(0);
+  const [totalDecisoes, setTotalDecisoes] = useState(40);
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -316,7 +341,10 @@ export default function Participante() {
     const comparacoes = roteiro.filter((r) => r.kind === 'comparacao');
     const pendentes = individuais.filter((r) => !r.respondida);
     const paresPendentes = comparacoes.filter((r) => !r.respondida);
-    if (roteiro.length !== 30) throw new Error('O banco não conseguiu sortear 30 decisões válidas.');
+    if (![30, 40].includes(roteiro.length)) throw new Error('O banco não conseguiu recuperar um roteiro válido.');
+    // Roteiros de 30 decisões iniciados antes da atualização permanecem íntegros.
+    // Novas sessões usam 40 decisões, com 20 individuais e 20 comparações.
+    setTotalDecisoes(roteiro.length);
     setTotal(individuais.length);
     setJaRespondidas(roteiro.filter((r) => r.respondida).length);
     salvar({ nIndividuais: individuais.length });
@@ -436,18 +464,18 @@ export default function Participante() {
   if (etapa === 'p1_intro') return <ParteIntro titulo={comps.length ? `Parte 1 de 2: ${total} conteúdos individuais` : `Teste: ${total} conteúdos individuais`} onOk={() => setEtapa('p1')}
       texto={['A classificação considera o conteúdo final apresentado. Se a imagem ou o som foi gerado por IA, a peça é IA, mesmo que a ideia, o roteiro ou o prompt sejam humanos.', 'Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
   if (etapa === 'p2_intro') return <ParteIntro titulo={`Parte 2 de 2: ${comps.length} comparações`} onOk={() => setEtapa('p2')}
-      texto={['Você concluiu a parte individual. Agora verá dois conteúdos por pergunta, mas cada par vale somente uma das 30 decisões.', 'Classifique cada peça independentemente: ambas podem ser reais, ambas podem ser IA ou podem ter origens diferentes. Não é obrigatório escolher uma de cada.']} />;
-  if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 24} />;
+      texto={[`Você concluiu a parte individual. Agora verá dois conteúdos por pergunta, mas cada par vale somente uma das ${totalDecisoes} decisões.`, 'Escolha nenhum, somente o primeiro, somente o segundo ou ambos, conforme a pergunta peça IA ou produções humanas. Os dois materiais podem ter a mesma origem.']} />;
+  if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 20} />;
   if (etapa === 'p2') {
     const c = comps[j];
-    return <Comparar key={c.id} rodada={c} n={jaRespondidas + fila.length + j} total={30}
+    return <Comparar key={c.id} rodada={c} n={jaRespondidas + fila.length + j} total={totalDecisoes}
       onConfirm={(m, ms) => decidirComp(c, m, ms)} busy={busy} erro={erro} />;
   }
   const c = fila[i];
   return <div className={"tela quiz" + (c.tipo === "audio" ? " quiz-audio" : c.tipo === "texto" ? " quiz-texto" : "")}>
     <header className="topo">
-      <div className="barra"><i style={{ width: `${((jaRespondidas + i) / 30) * 100}%` }} /></div>
-      <span>{jaRespondidas + i + 1}/30 decisões</span>
+      <div className="barra"><i style={{ width: `${((jaRespondidas + i) / totalDecisoes) * 100}%` }} /></div>
+      <span>{jaRespondidas + i + 1}/{totalDecisoes} decisões</span>
     </header>
     <SwipeCard key={c.id} item={c} primeiro={i === 0}
       pergunta={enunciado(true, c.enquadramento, c.tipo)} enquadramento={c.enquadramento} busy={busy} erro={erro}

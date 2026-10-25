@@ -1,5 +1,5 @@
 // Ranking de materiais: cada voto se refere a uma peça, não a uma rodada de comparação.
-// As sessões elegíveis vêm de analisarAvancado (concluídas, 30 decisões, não piloto por padrão).
+// As sessões elegíveis vêm de analisarAvancado (concluídas, 40 decisões no protocolo 20+20, sem pilotos por padrão).
 const percentual = (numerador, total) => total > 0 ? (100 * numerador / total) : null;
 const modalidades = { imagem: 'Imagem', texto: 'Texto', audio: 'Áudio', video: 'Vídeo' };
 

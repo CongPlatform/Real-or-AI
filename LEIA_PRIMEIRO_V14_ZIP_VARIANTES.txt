@@ -1,0 +1,76 @@
+REAL OU IA? — CORREÇÃO V14: TRÊS ZIPs, DOIS PARES E QUATRO RESPOSTAS
+===================================================================
+BASE: projeto v12 (40 decisões, 20 individuais + 20 comparações).
+
+INSTALAÇÃO
+1. Salve uma cópia dos arquivos atuais.
+2. Extraia este patch na RAIZ do projeto, sobrescrevendo os arquivos src/.
+3. Rode: npm run build
+4. Rode: git add .
+         git commit -m "Corrige ZIPs com variantes e respostas da parte 2"
+         git push
+5. Reabra Admin > Conteúdos > Importar comparações por ZIP.
+6. Se o seletor ainda mostrar a seleção antiga com erro, clique "Limpar seleção"
+   e selecione os ZIPs novamente. Atualize a página se necessário.
+
+NÃO PRECISA EXECUTAR SQL.
+Esta correção altera apenas o importador e a interface de resposta. Requer os
+patches SQL das versões v11/v12 e as políticas RLS administrativas já aplicados.
+
+EXEMPLOS AUTOMÁTICOS
+  C11-IA.zip + C11-REAL.zip
+     => C11: par misto (uma IA, uma humana).
+  C11.1-IA.zip + C11-IA.zip + C11-REAL.zip
+     => C11: par misto (uma IA, uma humana).
+     => C11.1: par com duas IAs (C11-IA + C11.1-IA).
+  C11.2-REAL.zip + C11-IA.zip + C11-REAL.zip
+     => C11: par misto.
+     => C11.2: par com duas humanas (C11-REAL + C11.2-REAL).
+  C11.1-IA.zip + C11.2-REAL.zip + C11-IA.zip + C11-REAL.zip
+     => C11: misto; C11.1: duas IAs; C11.2: duas humanas.
+  C12.1-IA.zip + C12.2-IA.zip (SEM par base)
+     => C12: par com duas IAs.
+  C13.1-REAL.zip + C13.2-REAL.zip (SEM par base)
+     => C13: par com duas humanas.
+
+Se você importar dez conjuntos iguais aos C11–C20 de sua captura, são formados
+20 pares válidos: dez mistos e dez com ambas IA, suficientes para a Parte 2.
+Cada PAR equivale a uma única decisão, mesmo apresentando duas peças.
+
+Atenção: apenas duas posições de variante (.1 e .2) são aceitas por família,
+e a mesma posição não pode designar arquivos de origens diferentes na mesma
+modalidade. Grupos inválidos são sinalizados e ignorados, sem bloquear os válidos.
+Códigos já cadastrados (mesma modalidade e código) não são duplicados.
+
+PERGUNTAS DA PARTE 2
+  Quais destes vídeos foram gerados por IA?
+  [Nenhum dos dois] [Somente o conteúdo 1]
+  [Somente o conteúdo 2] [Ambos os conteúdos]
+
+OU, em outra rodada:
+  Quais destes vídeos foram produzidos por pessoas?
+  [Nenhum dos dois] [Somente o conteúdo 1]
+  [Somente o conteúdo 2] [Ambos os conteúdos]
+
+IMPORTANTE SOBRE O GABARITO:
+- Duas peças IA + pergunta "Quais são humanas?" => NENHUMA.
+- Duas peças IA + pergunta "Quais são IA?" => AMBAS.
+- Duas peças humanas + pergunta "Quais são IA?" => NENHUMA.
+O servidor continua recebendo apenas os IDs classificados como IA, pois a
+conversão para o contrato do RPC acontece no navegador, sem revelar gabaritos.
+As métricas existentes de comparação continuam funcionando sem alterar o SQL.
+
+UPLOAD DE MÍDIA
+Quando um arquivo de vídeo/imagem/áudio é usado em mais de um par importado
+no mesmo lote, um único arquivo no Supabase Storage é referenciado por dois
+registros de conteúdo. Assim, ele não é enviado duas vezes à rede.
+A rotina de reversão de importações verifica se outros conteúdos compartilham
+a URL antes de apagar qualquer arquivo. Não exclua arquivos compartilhados
+manualmente no Supabase Storage enquanto estiverem em uso.
+
+VALIDAÇÃO LOCAL
+- 10 famílias com três ZIPs => 20 pares (10 mistos, 10 ambas IA): OK.
+- Ambos humanos, ambos IA, variantes avulsas, duplicatas: OK.
+- Perguntas IA/humano com quatro escolhas e inversão de resposta: OK.
+- Leitura de ZIPs de teste e sintaxe JSX: OK.
+- Supabase real e build Vite: não executados neste ambiente.

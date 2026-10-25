@@ -1,0 +1,43 @@
+REAL OU IA? — PATCH v12 | 40 DECISÕES: 20 INDIVIDUAIS + 20 COMPARAÇÕES
+======================================================================
+
+INSTALAÇÃO — IMPORTANTE A ORDEM
+1. Faça backup do Supabase e dos arquivos do projeto.
+2. No Supabase → SQL Editor, execute TODO o arquivo:
+   supabase/PATCH_PROTOCOLO_V12_40_DECISOES_20_20.sql
+3. Copie os arquivos 'src' incluídos neste patch sobre os existentes.
+4. Execute: npm install  (caso ainda não tenha instalado dependências)
+5. Execute: npm run build
+6. Publique: git add . && git commit -m "Amplia pesquisa para 40 decisoes 20 individuais e 20 comparacoes" && git push
+
+FUNCIONAMENTO
+- As 6 perguntas demográficas iniciais não contam nas 40 decisões.
+- Parte 1: 20 questões individuais, com aproximadamente 10 IA + 10 humanas.
+- Parte 2: 20 comparações, cada uma com dois conteúdos classificados separadamente.
+- Total apresentado por sessão: 60 peças (20 individuais e 40 peças em pares).
+- Os pares podem ser ambos IA, ambos humanos ou um de cada.
+- Para iniciar NOVAS sessões, são necessários no banco pelo menos 20 pares ATIVOS VÁLIDOS
+  (cada par com exatamente dois conteúdos ativos e gabaritos cadastrados).
+  Não havendo 20, o sistema mostra uma mensagem em vez de substituir silenciosamente
+  comparações por perguntas individuais.
+- O sorteio é feito no Supabase e permanece estável ao recarregar.
+- As sessões antigas de 30 questões, já sorteadas, não são modificadas nem apagadas.
+  O dashboard oficial considera só as novas sessões completas com 20+20; as sessões
+  anteriores ficam registradas para auditoria / comparação histórica separada.
+- A parte 2 aparece após terminar a parte 1.
+- O resultado do participante distingue acertos individuais e pares completos.
+- As métricas por formato e por parte permanecem separadas; não trate a nota mista
+  de 40 decisões como uma medida estatística homogênea: o palpite aleatório é de
+  50% por pergunta individual e 25% por par completo quando são duas decisões binárias.
+
+ARQUIVOS QUE O PATCH ALTERA
+- src/pages/Participante.jsx
+- src/pages/Dashboard.jsx
+- src/lib/analiseAvancada.js
+- supabase/PATCH_PROTOCOLO_V12_40_DECISOES_20_20.sql  (execute, não faça deploy SQL só pelo Git)
+
+TESTES LOCAIS
+- node TESTE_PROTOCOLO_40.mjs
+- npm run build (obrigatório na sua máquina; depende de node_modules)
+
+Não execute o schema.sql inteiro nem redefina senhas ou limpe respostas por causa desta atualização.

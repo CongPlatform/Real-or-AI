@@ -14,7 +14,8 @@ const MIME = { png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/we
   mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',m4a:'audio/mp4',
   mp4:'video/mp4',webm:'video/webm' };
 
-// C5-IA, C5-REAL, C5.1-IA e C5.2-IA representam o mesmo grupo C5.
+// O número base identifica a família; .1 e .2 identificam variantes adicionais.
+// Ex.: C11-IA + C11-REAL formam C11; C11.1-IA + C11-IA formam C11.1.
 export function reconhecerMarcador(nome) {
   const semExt = String(nome).split('/').pop().replace(/\.(zip|png|jpe?g|webp|mp3|wav|ogg|m4a|mp4|webm|txt|md)$/i, '');
   const m = /^C0*(\d+)(?:[._](\d+))?[-_\s]*(IA|REAL|HUMANO)$/i.exec(semExt.trim());
@@ -110,23 +111,74 @@ export async function lerZipDeComparacoes(zip) {
   return itens;
 }
 
+// Cada comparação continua contendo EXATAMENTE duas peças. Quando uma família
+// contém o par base e uma variante .1/.2, produzimos um SEGUNDO par autônomo.
+// Isso evita o antigo erro "Esperados 2 materiais, encontrados 3".
 export function agruparComparacoes(itens) {
-  const map=new Map(),erros=[];
-  for(const item of itens){
-    const key=`${item.tipo}:${item.codigo}`;
-    if(!map.has(key))map.set(key,[]);
-    map.get(key).push(item);
+  const familias = new Map();
+  for (const item of itens) {
+    const key = `${item.tipo}:${item.codigo}`;
+    if (!familias.has(key)) familias.set(key, []);
+    familias.get(key).push(item);
   }
-  const grupos=[...map].map(([key,partes])=>{
-    const [tipo,codigo]=key.split(':');
-    const problemas=[];
-    if(partes.length!==2) problemas.push(`Esperados 2 materiais, encontrados ${partes.length}.`);
-    const marcados=partes.filter(i=>i.posicao!==null);
-    if(marcados.length===2 && marcados[0].posicao===marcados[1].posicao)problemas.push('Posições duplicadas (.1/.1 ou .2/.2).');
-    partes.sort((a,b)=>(a.posicao||9)-(b.posicao||9)||a.arquivo.localeCompare(b.arquivo));
-    if(problemas.length)erros.push(`${codigo} (${tipo}): ${problemas.join(' ')}`);
-    return { key, tipo, codigo, itens:partes, erros:problemas,
-      cenario:partes.length===2?partes.filter(i=>i.ia).length:null };
-  }).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true})||a.tipo.localeCompare(b.tipo));
-  return { grupos, erros };
+  const grupos = [];
+  const erros = [];
+
+  function adicionar(tipo, codigo, pecas, problemas = [], derivado = false) {
+    const partes = [...pecas].sort((a, b) =>
+      (a.posicao ?? 9) - (b.posicao ?? 9) ||
+      a.arquivo.localeCompare(b.arquivo, 'pt-BR')
+    );
+    const ids = partes.map(p => `${p.origemZip}\0${p.arquivo}`);
+    const avisos = [...problemas];
+    if (partes.length !== 2) avisos.push(`Esperados 2 materiais, encontrados ${partes.length}.`);
+    if (new Set(ids).size !== ids.length) avisos.push('Arquivo duplicado: uma comparação precisa de duas peças distintas.');
+    if (partes.length === 2 && partes.every(p => p.posicao !== null) &&
+        partes[0].posicao === partes[1].posicao) {
+      avisos.push('Posições duplicadas (.1/.1 ou .2/.2).');
+    }
+    if (avisos.length) erros.push(`${codigo} (${tipo}): ${avisos.join(' ')}`);
+    grupos.push({ key: `${tipo}:${codigo}`, tipo, codigo, itens: partes,
+      erros: avisos, cenario: partes.length === 2 ? partes.filter(i => i.ia).length : null,
+      derivado });
+  }
+
+  for (const [key, pecas] of familias) {
+    const [tipo, codigoBase] = key.split(':');
+    const base = pecas.filter(p => p.posicao === null);
+    const variantes = pecas.filter(p => p.posicao !== null);
+    const repetidas = new Set(variantes.map(p => p.posicao)).size !== variantes.length;
+    const duplicateBase = base.length > 2;
+
+    // Convenção v14: C11-IA + C11-REAL + C11.1-IA gera C11 (misto)
+    // e C11.1 (IA × IA, reaproveitando C11-IA como segundo material).
+    // Análogo: C11.2-REAL gera C11.2 (humano × humano).
+    if (base.length === 2 && variantes.length && !repetidas && !duplicateBase) {
+      adicionar(tipo, codigoBase, base);
+      for (const extra of variantes) {
+        const correspondente = base.find(p => p.ia === extra.ia);
+        const codigo = `${codigoBase}.${extra.posicao}`;
+        if (!correspondente) {
+          adicionar(tipo, codigo, [extra],
+            ['Não existe no par base uma peça da mesma origem para completar esta variante.']);
+          continue;
+        }
+        adicionar(tipo, codigo, [correspondente, extra], [], true);
+      }
+      continue;
+    }
+
+    // Convenções originais: C1-IA+C1-REAL; C2.1-IA+C2.2-IA;
+    // C3-IA+C3.1-IA (sem C3-REAL).
+    if (pecas.length === 2 && !repetidas) {
+      adicionar(tipo, codigoBase, pecas);
+    } else {
+      const motivo = repetidas
+        ? 'Existem variantes com a mesma posição (.1 ou .2). Use posições distintas.'
+        : 'Grupo ambíguo: use Cn-IA + Cn-REAL para o par base e Cn.1-IA ou Cn.2-REAL para criar os pares adicionais.';
+      adicionar(tipo, codigoBase, pecas, [motivo]);
+    }
+  }
+  grupos.sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', {numeric: true}) || a.tipo.localeCompare(b.tipo));
+  return {grupos, erros};
 }

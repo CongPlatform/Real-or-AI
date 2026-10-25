@@ -44,7 +44,7 @@ const GUIA_METRICAS = {
   'Amplitude interquartil': 'Diferença entre Q3 e Q1: mostra a variação da metade central das notas.',
   'Coeficiente de variação': 'Compara o tamanho do desvio padrão com a média; avalia a dispersão relativa.',
   'Dupla totalmente correta': 'Porcentagem de comparações em que as duas peças foram classificadas corretamente.',
-  'Acerto nas 30 decisões (24 + 6)': 'Média das notas dos participantes que responderam 24 perguntas individuais e seis comparações. Cada comparação só conta como certa se ambas as peças foram classificadas corretamente.',
+  'Acerto nas 40 decisões (20 + 20)': 'Média das notas dos participantes que responderam 20 perguntas individuais e 20 comparações. Cada comparação só conta como certa se ambas as peças forem classificadas corretamente.',
   'Acertos por peça': 'Porcentagem de peças classificadas corretamente dentro das comparações.',
   'Pedidos para ouvir mais': 'Quantas vezes os participantes solicitaram acesso a mais alguns segundos de áudio.',
   'Trecho mediano liberado': 'Ponto central da porcentagem de áudio disponibilizada aos participantes, não necessariamente ouvida.',
@@ -165,8 +165,8 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
   const [perfilTipo,setPerfilTipo]=useState('faixa');
   const d=useMemo(()=>analisarAvancado(avancado,incluirPilotos),[avancado,incluirPilotos]);
   const comparacoesAnalise=useMemo(()=>analisarComparacoes(d.rc),[d.rc]);
-  const sessoesComDuasPartes=d.pessoas.filter(p=>p.n_ind===24 && p.n_comp===6);
-  const media30=sessoesComDuasPartes.length?sessoesComDuasPartes.reduce((ac,p)=>ac+100*(p.acertos+p.acertosPares)/30,0)/sessoesComDuasPartes.length:null;
+  const sessoesComDuasPartes=d.pessoas.filter(p=>p.n_ind===20 && p.n_comp===20);
+  const media40=sessoesComDuasPartes.length?sessoesComDuasPartes.reduce((ac,p)=>ac+100*(p.acertos+p.acertosPares)/40,0)/sessoesComDuasPartes.length:null;
   const q=d.quad;
   const ia=q.vv+q.vf,humano=q.ff+q.fv,N=ia+humano;
   const sensibil=ia?100*q.vv/ia:null;
@@ -196,7 +196,7 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
   const compCSV=d.rc.map(r=>({participante:r.participante_id,comparacao:r.comparacao_id,tipo:r.tipo,enquadramento:r.enquadramento,acertou:r.acertou,acertos_itens:r.acertos_itens,n_itens:r.n_itens,n_reais_ia:r.n_reais_ia,n_marcados_ia:r.n_marcados_ia,tempo_ms:r.tempo_ms,data:r.data}));
   async function piloto(p){setErro('');setMudando(p.id);try{const {error}=await supabase.rpc('admin_classificar_piloto_v4',{p_participante:p.id,p_excluir:!p.excluir_analise});if(error)throw error;await atualizar?.();}catch(e){setErro(e.message||'Falha ao classificar piloto.');}finally{setMudando('');}}
   return <div className="dash dash-v5">
-    <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Resultado oficial usa exclusivamente sessões completas de 30 decisões.</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
+    <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Resultado oficial usa somente sessões completas do protocolo de 40 decisões (20 + 20).</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
     <nav className="v5-abas" aria-label="Seções das estatísticas">{TABS.map(([key,label])=><button type="button" key={key} aria-current={aba===key?'page':undefined} className={aba===key?'ativa':''} onClick={()=>setAba(key)}>{label}</button>)}</nav>
     <div className="v5-filtro"><label><input type="checkbox" checked={incluirPilotos} onChange={e=>setIncluirPilotos(e.target.checked)}/> Incluir sessões piloto na análise</label><span>{incluirPilotos?'Exibindo também pilotos completos. Não usar esta opção no relatório final.':'Sessões piloto excluídas dos indicadores oficiais.'}</span></div>
     {erro&&<p role="alert" className="erro">{erro}</p>}
@@ -206,10 +206,10 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
         <Numero rotulo="Mediana individual" valor={p100(d.notas.mediana)} legenda="Metade dos participantes fica de cada lado deste valor"/>
         <Numero rotulo="Decisões registradas" valor={d.coleta.volume} legenda="Soma de questões individuais e rodadas de comparação"/>
         <Numero rotulo="Taxa de conclusão" valor={p100(d.coleta.total?100*d.coleta.finalizadas/d.coleta.total:null)} legenda={`${d.coleta.finalizadas} finalizados entre ${d.coleta.total} iniciados (todas as versões)`}/></div>
-      <div className="v5-dados-diretos"><Numero destaque rotulo="Acerto nas 30 decisões (24 + 6)" valor={p100(media30)}
+      <div className="v5-dados-diretos"><Numero destaque rotulo="Acerto nas 40 decisões (20 + 20)" valor={p100(media40)}
         legenda={`${sessoesComDuasPartes.length} participante(s) com as duas partes completas`}
-        formula="(Acertos individuais + pares totalmente corretos) ÷ 30 × 100; depois calculamos a média dos participantes." /></div>
-      <Nota>O acerto nas 30 decisões é uma <b>nota descritiva mista</b>: perguntas individuais e pares possuem referências distintas para palpites aleatórios (50% e 25%). Para interpretar reconhecimento de IA, consulte as métricas de cada parte separadamente. Sessões antigas sem seis comparações não entram nessa nota.</Nota>
+        formula="(Acertos individuais + pares totalmente corretos) ÷ 40 × 100; depois calculamos a média dos participantes." /></div>
+      <Nota>O acerto nas 40 decisões é uma <b>nota descritiva mista</b>: perguntas individuais e pares possuem referências distintas para palpites aleatórios (50% e 25%). Para interpretar reconhecimento de IA, consulte as métricas de cada parte separadamente. Sessões de 30 decisões anteriores à atualização ficam fora da análise oficial, mas permanecem guardadas.</Nota>
       <div className="v5-grid"><Painel titulo="Como as pontuações se distribuem" sub="Histograma: quantidade de pessoas em cada faixa de acerto, sem tratar respostas como participantes."><Histograma pessoas={d.pessoas}/></Painel>
         <Painel titulo="Quanto de IA e humano apareceu?" sub="Proporção real dos conteúdos individuais exibidos aos participantes."><PieComposicao composicao={d.composicao}/></Painel>
         <Painel titulo="Acurácia por modalidade" sub="Cada ponto é a média por participante naquele formato."><LinhaVaria data={d.tipo}/></Painel>
@@ -264,7 +264,7 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
     </>}
     {aba==='comparacoes'&&<>
       <div className="v5-intro"><h2>Parte 2 — comparações entre dois conteúdos</h2>
-        <p>As comparações pertencem às <strong>30 decisões</strong> do mesmo participante: quando existem seis pares disponíveis, são 24 classificações individuais e seis comparações. Cada comparação apresenta dois materiais; nenhum, um ou ambos podem ter origem em IA.</p></div>
+        <p>As comparações pertencem às <strong>40 decisões</strong> do mesmo participante: são 20 classificações individuais e 20 comparações em cada nova sessão. Cada comparação apresenta dois materiais; nenhum, um ou ambos podem ter origem em IA.</p></div>
       <div className="v5-hero-numeros v5-tres">
         <Numero destaque rotulo="Dupla totalmente correta" valor={p100(comparacoesAnalise.total.porcentagemExata)}
           legenda={`${comparacoesAnalise.total.exatas} de ${comparacoesAnalise.total.n} comparações respondidas sem erros`}
@@ -322,7 +322,7 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
         {d.audio.etapas.some(x=>x.n)?<div className="v5-grafico"><ResponsiveContainer width="100%" height={300}><LineChart data={d.audio.etapas.filter(x=>x.n)} margin={{top:16,right:16,bottom:14,left:0}}><CartesianGrid {...BASE_GRID}/><XAxis dataKey="nome" label={{value:'Pedidos para ouvir mais',position:'insideBottom',offset:-7}}/><YAxis domain={[0,100]} tickFormatter={v=>`${v}%`}/><Tooltip contentStyle={hoverStyle} formatter={v=>p100(v)}/><Line type="monotone" dataKey="acerto" stroke={COLORS[0]} strokeWidth={3} dot={{r:5}} name="Acertos"/></LineChart></ResponsiveContainer></div>:<Empty/>}
       </Painel></div>
       <div className="v5-dados-diretos"><Numero rotulo="Áudios com telemetria" valor={`${d.audio.medidos} / ${d.audio.n}`} legenda="Gravações com duração e trecho disponíveis"/><Numero rotulo="Escuta mediana" valor={`${nfmt(d.audio.ouvidoMed)} s`} legenda="Segundos reproduzidos; repetições contam"/><Numero rotulo="Trecho mediano liberado" valor={p100(d.audio.fraçãoMed)} legenda="Parte do arquivo disponibilizada à pessoa"/><Numero rotulo="Pedidos para ouvir mais" valor={nfmt(d.audio.maisMed)} legenda="Média de solicitações"/></div>
-      <Painel titulo="Estimativa após o teste" sub="Diferença entre a estimativa do participante e seu desempenho individual medido."><Numero rotulo="Viés médio da estimativa" valor={p100(d.viesConfianca.media)} legenda={`${d.viesConfianca.n} participantes com estimativa numérica`}/><Nota>Valor positivo = superestimou a própria nota; negativo = subestimou. A pergunta de estimativa pode envolver todas as 30 decisões; antes de usar esta métrica como resultado final, confira se o denominador da estimativa corresponde ao mesmo conjunto de questões da nota individual.</Nota></Painel>
+      <Painel titulo="Estimativa após o teste" sub="Diferença entre a estimativa do participante e seu desempenho individual medido."><Numero rotulo="Viés médio da estimativa" valor={p100(d.viesConfianca.media)} legenda={`${d.viesConfianca.n} participantes com estimativa numérica`}/><Nota>Valor positivo = superestimou a própria nota; negativo = subestimou. A pergunta de estimativa pode envolver todas as 40 decisões; antes de usar esta métrica como resultado final, confira se o denominador da estimativa corresponde ao mesmo conjunto de questões da nota individual.</Nota></Painel>
     </>}
     {aba==='projecao'&&<>
       <div className="v5-intro"><h2>Como a estimativa muda durante a coleta?</h2><p>Reprodução da trajetória conforme cada participante termina. A hipótese inicial é exibida separadamente do que foi observado.</p></div>
