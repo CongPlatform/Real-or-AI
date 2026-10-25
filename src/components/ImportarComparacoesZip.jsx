@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { criarItem } from '../lib/conteudosStorage';
 import { agruparComparacoes, lerZipDeComparacoes } from '../lib/zipComparacoes';
 
-const ROTULOS={imagem:'Imagem',audio:'Áudio',texto:'Texto',video:'Vídeo'};
+const ROTULOS={imagem:'Imagem',texto:'Texto',video:'Vídeo'};
 const CENARIOS=['Nenhuma peça é IA (ambas humanas)','Uma peça é IA e outra humana','Ambas são IA'];
 
 // Somente administrador tem permissão para executar as escritas pelas políticas RLS existentes.
@@ -129,10 +129,10 @@ export default function ImportarComparacoesZip({ recarregar }) {
       <p className="mut">Envie vários arquivos ZIP de uma vez ou em seleções sucessivas. O sistema agrupa <strong>C1-IA</strong> e <strong>C1-REAL</strong> como uma dupla. Com uma variante <strong>C1.1-IA</strong>, cria ainda uma segunda dupla IA × IA. Também aceita duas peças humanas.</p></div></div>
     <details className="comparacao-zip-exemplos"><summary>Como nomear os arquivos e as pastas?</summary>
       <p>Uma peça por arquivo: <code>C1-IA.zip</code> e <code>C1-REAL.zip</code>. Para dois materiais com a mesma origem, utilize <code>C2.1-IA.zip</code> e <code>C2.2-IA.zip</code>, ou <code>C3.1-REAL.zip</code> e <code>C3.2-REAL.zip</code>.</p>
-      <p>Também aceita um ZIP contendo pastas <code>C4-IA/</code> e <code>C4-REAL/</code>, cada uma com seu arquivo. Uma pasta <code>C5-IA/</code> com exatamente duas mídias cria um par com ambas IA. Para textos, use arquivos <code>.txt</code> ou <code>.md</code>. Não misture modalidades dentro do mesmo par.</p>
+      <p>Também aceita um ZIP contendo pastas <code>C4-IA/</code> e <code>C4-REAL/</code>, cada uma com seu arquivo. Uma pasta <code>C5-IA/</code> com exatamente duas mídias cria um par com ambas IA. Para textos, use arquivos <code>.txt</code> ou <code>.md</code>. Não misture modalidades dentro do mesmo par. Áudios são permitidos apenas no cadastro individual.</p>
       <p><strong>Três arquivos podem virar dois pares:</strong> <code>C11-IA</code> + <code>C11-REAL</code> + <code>C11.1-IA</code> geram <code>C11</code> (IA + humano) e <code>C11.1</code> (IA + IA). A peça <code>C11-IA</code> é utilizada nos dois pares. Para criar humano + humano, acrescente <code>C11.2-REAL</code>. O número após o ponto identifica uma variante; a origem vem de <code>-IA</code> ou <code>-REAL</code>.</p>
     </details>
-    <label className="lote-nome" htmlFor="comparacoes-arquivos-zip">Selecione ZIPs de imagens, textos, áudios ou vídeos</label>
+    <label className="lote-nome" htmlFor="comparacoes-arquivos-zip">Selecione ZIPs de imagens, textos ou vídeos</label>
     <input type="file" id="comparacoes-arquivos-zip" accept=".zip,application/zip" multiple
       disabled={enviando||selecionando} onChange={selecionar}/>
     {selecionando&&<p role="status">Lendo e descompactando ZIPs…</p>}

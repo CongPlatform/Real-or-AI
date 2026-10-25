@@ -70,6 +70,7 @@ export async function lerZipDeComparacoes(zip) {
     if(caminho.endsWith('/') || ignoravel(caminho))continue;
     const tipo=extrairTipo(caminho);
     if(!tipo)continue;
+    if(tipo==='audio')throw new Error(`${caminho}: áudios não são aceitos em comparações. Envie áudios pela importação individual.`);
     const marcador=obterMarcador(caminho,zip.name);
     if(!marcador)throw new Error(`${zip.name}: não reconheci Cn-IA ou Cn-REAL na pasta, arquivo ou nome do ZIP (${caminho}).`);
     if(flags&1)throw new Error(`${caminho}: ZIP com senha não é aceito.`);

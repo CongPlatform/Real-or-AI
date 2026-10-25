@@ -8,6 +8,7 @@ import OtimizarImagensExistentes from './OtimizarImagensExistentes';
 import RevisarTextosExistentes from './RevisarTextosExistentes';
 import NormalizarAudios from './NormalizarAudios';
 import ImportarComparacoesZip from './ImportarComparacoesZip';
+import ImportarComparacoesTxt from './ImportarComparacoesTxt';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -383,7 +384,9 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
   const completo = itens.slice(0, n).every((it) => (tipo === 'texto' ? it.texto.trim() : it.arq));
 
   async function salvar(e) {
-    e.preventDefault(); setBusy(true); setMsg('');
+    e.preventDefault();
+    if (modo === 'comp' && tipo === 'audio') { setMsg('Áudios não podem ser cadastrados como comparações. O cadastro individual continua disponível.'); return; }
+    setBusy(true); setMsg('');
     const form = e.target; let compId = null;
     try {
       if (modo === 'indiv') await criarItem(tipo, itens[0],
@@ -423,11 +426,12 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
         <form className="form-cont" onSubmit={salvar}>
           <div className="chips">
             <button type="button" className={'chip' + (modo === 'indiv' ? ' on' : '')} onClick={() => setModo('indiv')}>Individual (parte 1)</button>
-            <button type="button" className={'chip' + (modo === 'comp' ? ' on' : '')} onClick={() => setModo('comp')}>Comparação (parte 2)</button>
+            <button type="button" className={'chip' + (modo === 'comp' ? ' on' : '')} onClick={() => { setModo('comp'); if (tipo === 'audio') { setTipo('imagem'); setItens([vazio(), vazio()]); } }}>Comparação (parte 2)</button>
           </div>
           <select value={tipo} onChange={(e) => { setTipo(e.target.value); setItens([vazio(), vazio()]); }}>
-            {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(TIPOS).filter(([k]) => modo !== 'comp' || k !== 'audio').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+          {modo === 'comp' && <p className="mut">Comparações aceitam imagens, textos e vídeos. Áudios permanecem somente na modalidade individual.</p>}
           <input placeholder="Nome interno (imagem: automático se vazio)" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
           {itens.slice(0, n).map((it, k) => (
             <Editor key={tipo + modo + k} it={it} tipo={tipo} onChange={setItem(k)} rotulo={modo === 'comp' ? `Conteúdo ${k + 1}` : null} />
@@ -436,6 +440,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
           <button className="cta" disabled={busy || !completo}>{busy ? 'Enviando…' : 'Adicionar'}</button>
         </form>
       </section>
+
+      <ImportarComparacoesTxt recarregar={recarregar} />
 
       <ImportarComparacoesZip recarregar={recarregar} />
 
