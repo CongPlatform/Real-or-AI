@@ -551,3 +551,22 @@ details p{line-height:1.65;font-size:.92rem}
   .inicio-fatos span{font-size:.75rem;padding:7px 9px}
   .inicio-definicao{padding:12px 13px}
 }
+
+/* v10: imagem ocupa o cartão, sem alterar proporção ou distorcer. */
+.quiz .imagem-receptaculo, .comp-item .imagem-receptaculo{align-self:stretch;flex:1;min-height:0;height:100%;width:100%;}
+.quiz .imagem-receptaculo .m-img{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;}
+.comp-item .imagem-receptaculo .m-img{width:100%;height:100%;max-height:38vh;object-fit:contain;}
+/* v10: resultados detalhados, com leitura confortável em celular. */
+.detalhe-lista{display:grid;gap:12px;margin-top:14px;width:100%}
+.detalhe-item{border:2px solid var(--ink);border-radius:14px;padding:14px;background:#fff;min-width:0}
+.detalhe-item .m-img{width:100%;max-height:280px;object-fit:contain}
+.detalhe-item .m-texto{white-space:pre-wrap;font-size:1rem;line-height:1.55;max-height:none;overflow:visible}
+.detalhe-item video,.detalhe-item audio{max-width:100%;width:100%;max-height:280px}
+.detalhe-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.detalhe-topo strong{font-weight:900}.detalhe-respostas{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap}
+.detalhe-respostas span{padding:5px 10px;background:#f2edff;border-radius:8px;font-size:.85rem}
+.detalhe-acerto{color:#356600}.detalhe-erro{color:#aa2734}
+.detalhe-tela{max-width:780px;width:100%;margin:auto}
+.detalhe-acoes{display:flex;flex-wrap:wrap;gap:9px}.detalhe-acoes>*{flex:1}
+.excluir-textos-lote{border:2px solid var(--warn);border-radius:14px;padding:16px;background:#fffafa;display:flex;flex-direction:column;gap:10px}
+.excluir-textos-lote .cta{background:#ffe1e1}.excluir-textos-lote select{max-width:390px}

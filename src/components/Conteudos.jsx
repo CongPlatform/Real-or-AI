@@ -335,6 +335,20 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
   const [itens, setItens] = useState([vazio(), vazio()]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [classeExcluir, setClasseExcluir] = useState('todos');
+  const [excluindoTextos, setExcluindoTextos] = useState(false);
+
+  async function excluirTextos() {
+    const quantidade = lista.filter(c => c.tipo === 'texto' && (classeExcluir === 'todos' || (classeExcluir === 'ia') === !!c.eh_ia)).length;
+    if (!quantidade) return setMsg('Não há textos para este filtro.');
+    if (window.prompt(`Você está prestes a apagar ${quantidade} texto(s), incluindo possíveis pares. Isso NÃO pode ser desfeito. Digite EXCLUIR TEXTOS:`) !== 'EXCLUIR TEXTOS') return;
+    setExcluindoTextos(true); setMsg('');
+    try {
+      const {data,error} = await supabase.rpc('admin_excluir_textos_v10',{p_classe:classeExcluir});
+      if (error) throw error;
+      setMsg(`${data} texto(s) excluído(s).`); recarregar();
+    } catch(e) {setMsg('Não foi possível excluir: '+e.message);} finally {setExcluindoTextos(false);}
+  }
 
   const setItem = (k) => (p) => setItens((a) => a.map((x, n) => (n === k ? { ...x, ...p } : x)));
   const n = modo === 'indiv' ? 1 : 2;
@@ -427,6 +441,18 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
               })}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="painel larga">
+        <h2>Excluir textos em lote</h2>
+        <div className="excluir-textos-lote">
+          <p>Exclui textos IA, textos humanos ou todos os textos, sem alterar imagens, áudios ou vídeos. Se existirem respostas vinculadas, será necessário limpar os dados de testes antes. As exclusões são irreversíveis.</p>
+          <label htmlFor="classe-textos-excluir">Textos a excluir</label>
+          <select id="classe-textos-excluir" value={classeExcluir} onChange={e=>setClasseExcluir(e.target.value)}>
+            <option value="todos">Todos os textos</option><option value="ia">Somente textos de IA</option><option value="humano">Somente textos humanos</option>
+          </select>
+          <button type="button" className="cta" disabled={excluindoTextos} onClick={excluirTextos}>{excluindoTextos?'Excluindo…':'Excluir textos selecionados'}</button>
         </div>
       </section>
 

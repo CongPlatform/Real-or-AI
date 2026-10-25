@@ -194,10 +194,59 @@ function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
   );
 }
 
+function ResultadoDetalhado({ pid, onVoltar }) {
+  const [itens, setItens] = useState(null);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    let ativo = true;
+    supabase.rpc('resultado_detalhado_v10', { p_participante: pid }).then(({ data, error }) => {
+      if (!ativo) return;
+      if (error) setErro('Não foi possível recuperar o relatório: ' + error.message);
+      else setItens(Array.isArray(data) ? data : []);
+    });
+    return () => { ativo = false; };
+  }, [pid]);
+  const textoOrigem = (v) => v ? 'IA' : 'Humano';
+  return <div className="tela largo detalhe-tela">
+    <div className="cartao">
+      <button type="button" className="link" onClick={onVoltar}>← Voltar ao resultado</button>
+      <h1 style={{fontSize:'clamp(2rem,6vw,3rem)'}}>Suas respostas</h1>
+      <p className="mut">Revise o que você marcou e a origem verdadeira de cada conteúdo. Este relatório só fica disponível após a conclusão.</p>
+      {erro && <p role="alert" className="erro">{erro}</p>}
+      {!itens && !erro && <p>Carregando suas respostas…</p>}
+      {itens?.length === 0 && <p>Nenhuma resposta detalhada disponível.</p>}
+      <div className="detalhe-lista">
+      {itens?.map((it, n) => <article className="detalhe-item" key={`${it.id}-${n}`}>
+        <div className="detalhe-topo"><strong>{n+1}. {TIPOS[it.tipo] || it.tipo}</strong>
+          <b className={it.acertou ? 'detalhe-acerto' : 'detalhe-erro'}>{it.acertou ? '✓ Acertou' : '✕ Errou'}</b></div>
+        {it.tipo === 'imagem' && it.url && <img className="m-img" loading="lazy" src={it.url} alt="Imagem avaliada" />}
+        {it.tipo === 'texto' && <p className="m-texto">{it.texto}</p>}
+        {it.tipo === 'audio' && it.url && <audio controls preload="none" src={it.url} />}
+        {it.tipo === 'video' && it.url && <video controls preload="none" playsInline src={it.url} />}
+        <div className="detalhe-respostas"><span>Sua resposta: <b>{textoOrigem(it.resposta_ia)}</b></span>
+          <span>Origem correta: <b>{textoOrigem(it.eh_ia)}</b></span></div>
+        {it.comparacao && <small>Item de comparação</small>}
+      </article>)}
+      </div>
+    </div>
+  </div>;
+}
+
 function Fim({ pid, total }) {
   const [res, setRes] = useState(ler().resultado || null);
   const [est, setEst] = useState(Math.round(total / 2));
   const [busy, setBusy] = useState(false);
+  const [detalhado, setDetalhado] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
+
+  async function compartilhar() {
+    const url = window.location.origin + window.location.pathname + window.location.hash;
+    const dados = {title:'Real ou IA?', text:'Eu participei do teste Real ou IA? Você consegue identificar o que foi feito por IA?', url};
+    try {
+      if (navigator.share) await navigator.share(dados);
+      else { await navigator.clipboard.writeText(url); setShareMsg('Link copiado. Você pode enviar a quem quiser!'); }
+    } catch (e) { if (e.name !== 'AbortError') setShareMsg('O compartilhamento não está disponível neste navegador.'); }
+  }
 
   async function ver() {
     setBusy(true);
@@ -222,6 +271,7 @@ function Fim({ pid, total }) {
     );
   }
   const pct = Math.round((100 * res.acertos) / Math.max(res.total, 1));
+  if (detalhado) return <ResultadoDetalhado pid={pid} onVoltar={() => setDetalhado(false)} />;
   return (
     <div className="tela centro largo">
       <div className="cartao">
@@ -237,7 +287,13 @@ function Fim({ pid, total }) {
           ))}
         </div>
         {res.comp?.total > 0 && <p className="mut">Parte 2: você acertou os dois conteúdos em {res.comp.acertos} de {res.comp.total} comparações.</p>}
-        <p className="mut">Suas respostas já entraram na pesquisa. Passe o link para um amigo!</p>
+        <p className="mut">Suas respostas já entraram na pesquisa. Convide alguém para participar!</p>
+        <div className="detalhe-acoes">
+          <button type="button" className="cta" onClick={compartilhar}>Compartilhar pesquisa</button>
+          <button type="button" className="cta" onClick={() => setDetalhado(true)}>Ver minhas respostas detalhadas</button>
+        </div>
+        <p className="mut">Compartilhar é opcional: os seus resultados detalhados estão disponíveis independentemente disso.</p>
+        {shareMsg && <p role="status" className="mut">{shareMsg}</p>}
       </div>
     </div>
   );
