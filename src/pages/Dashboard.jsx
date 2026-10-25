@@ -9,6 +9,7 @@ import { analisarAvancado, ENQUADRAMENTOS, TIPOS_ANALISE, resumoParticipantes } 
 import { criarEvolucao, contarDistribuicao, PREVISAO_INICIAL, FORCA_INICIAL } from '../lib/previsaoPesquisa';
 import { supabase } from '../lib/supabase';
 import RankingMateriais from '../components/RankingMateriais';
+import { analisarComparacoes } from '../lib/analiseComparacoes';
 
 const META=100;
 const p100=v=>v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v).toFixed(1).replace('.',',')}%`;
@@ -19,7 +20,7 @@ const BASE_GRID={stroke:'#E6E2F0',strokeDasharray:'4 4'};
 const hoverStyle={border:'2px solid #14122B',borderRadius:10,background:'#fff',fontSize:13};
 const NAMES={ IA:'IA', real:'Humano' };
 const TABS=[
-  ['visao','Visão geral'],['diagnostico','IA × humano'],['formatos','Formatos e perguntas'],
+  ['visao','Visão geral'],['diagnostico','IA × humano'],['formatos','Formatos e perguntas'],['comparacoes','Comparações (parte 2)'],
   ['comportamento','Escuta e confiança'],['projecao','Evolução e projeção'],
   ['materiais','Análise por conteúdo'],['calculos','Como calculamos'],['auditoria','Tabelas e auditoria']
 ];
@@ -43,6 +44,7 @@ const GUIA_METRICAS = {
   'Amplitude interquartil': 'Diferença entre Q3 e Q1: mostra a variação da metade central das notas.',
   'Coeficiente de variação': 'Compara o tamanho do desvio padrão com a média; avalia a dispersão relativa.',
   'Dupla totalmente correta': 'Porcentagem de comparações em que as duas peças foram classificadas corretamente.',
+  'Acerto nas 30 decisões (24 + 6)': 'Média das notas dos participantes que responderam 24 perguntas individuais e seis comparações. Cada comparação só conta como certa se ambas as peças foram classificadas corretamente.',
   'Acertos por peça': 'Porcentagem de peças classificadas corretamente dentro das comparações.',
   'Pedidos para ouvir mais': 'Quantas vezes os participantes solicitaram acesso a mais alguns segundos de áudio.',
   'Trecho mediano liberado': 'Ponto central da porcentagem de áudio disponibilizada aos participantes, não necessariamente ouvida.',
@@ -162,6 +164,9 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
   const [erro,setErro]=useState('');
   const [perfilTipo,setPerfilTipo]=useState('faixa');
   const d=useMemo(()=>analisarAvancado(avancado,incluirPilotos),[avancado,incluirPilotos]);
+  const comparacoesAnalise=useMemo(()=>analisarComparacoes(d.rc),[d.rc]);
+  const sessoesComDuasPartes=d.pessoas.filter(p=>p.n_ind===24 && p.n_comp===6);
+  const media30=sessoesComDuasPartes.length?sessoesComDuasPartes.reduce((ac,p)=>ac+100*(p.acertos+p.acertosPares)/30,0)/sessoesComDuasPartes.length:null;
   const q=d.quad;
   const ia=q.vv+q.vf,humano=q.ff+q.fv,N=ia+humano;
   const sensibil=ia?100*q.vv/ia:null;
@@ -201,6 +206,10 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
         <Numero rotulo="Mediana individual" valor={p100(d.notas.mediana)} legenda="Metade dos participantes fica de cada lado deste valor"/>
         <Numero rotulo="Decisões registradas" valor={d.coleta.volume} legenda="Soma de questões individuais e rodadas de comparação"/>
         <Numero rotulo="Taxa de conclusão" valor={p100(d.coleta.total?100*d.coleta.finalizadas/d.coleta.total:null)} legenda={`${d.coleta.finalizadas} finalizados entre ${d.coleta.total} iniciados (todas as versões)`}/></div>
+      <div className="v5-dados-diretos"><Numero destaque rotulo="Acerto nas 30 decisões (24 + 6)" valor={p100(media30)}
+        legenda={`${sessoesComDuasPartes.length} participante(s) com as duas partes completas`}
+        formula="(Acertos individuais + pares totalmente corretos) ÷ 30 × 100; depois calculamos a média dos participantes." /></div>
+      <Nota>O acerto nas 30 decisões é uma <b>nota descritiva mista</b>: perguntas individuais e pares possuem referências distintas para palpites aleatórios (50% e 25%). Para interpretar reconhecimento de IA, consulte as métricas de cada parte separadamente. Sessões antigas sem seis comparações não entram nessa nota.</Nota>
       <div className="v5-grid"><Painel titulo="Como as pontuações se distribuem" sub="Histograma: quantidade de pessoas em cada faixa de acerto, sem tratar respostas como participantes."><Histograma pessoas={d.pessoas}/></Painel>
         <Painel titulo="Quanto de IA e humano apareceu?" sub="Proporção real dos conteúdos individuais exibidos aos participantes."><PieComposicao composicao={d.composicao}/></Painel>
         <Painel titulo="Acurácia por modalidade" sub="Cada ponto é a média por participante naquele formato."><LinhaVaria data={d.tipo}/></Painel>
@@ -252,6 +261,58 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
       </Painel>
       <Painel titulo="Comparações entre dois conteúdos" sub="Acertar os dois conteúdos é diferente de acertar cada um separadamente."><div className="v5-dados-diretos"><Numero rotulo="Dupla totalmente correta" valor={p100(d.comparacaoExata.media)} legenda="Média de acertos exatos por participante"/><Numero rotulo="Acertos por peça" valor={p100(d.comparacaoItens.media)} legenda="Média por participante dos itens da comparação"/></div><Nota>Com duas decisões independentes e quatro configurações possíveis, o palpite uniforme tem referência de 25% para acertar a dupla inteira; já por peça, 50%. Essa referência pressupõe escolhas uniformes, não necessariamente o comportamento real.</Nota></Painel>
       <Painel titulo="Formulação dentro de cada modalidade"><Tabela cabecalhos={['Modalidade','Pergunta','Respostas','Pessoas','Média de acertos','Marcou IA']} linhas={d.fTipo.map(x=>[x.nome,ENQUADRAMENTOS[x.frame],x.n,x.pessoas,p100(x.acerto),p100(x.disseIA)])}/></Painel>
+    </>}
+    {aba==='comparacoes'&&<>
+      <div className="v5-intro"><h2>Parte 2 — comparações entre dois conteúdos</h2>
+        <p>As comparações pertencem às <strong>30 decisões</strong> do mesmo participante: quando existem seis pares disponíveis, são 24 classificações individuais e seis comparações. Cada comparação apresenta dois materiais; nenhum, um ou ambos podem ter origem em IA.</p></div>
+      <div className="v5-hero-numeros v5-tres">
+        <Numero destaque rotulo="Dupla totalmente correta" valor={p100(comparacoesAnalise.total.porcentagemExata)}
+          legenda={`${comparacoesAnalise.total.exatas} de ${comparacoesAnalise.total.n} comparações respondidas sem erros`}
+          formula={`${comparacoesAnalise.total.exatas} ÷ ${comparacoesAnalise.total.n} × 100`}/>
+        <Numero destaque rotulo="Acertos por peça" valor={p100(comparacoesAnalise.total.porcentagemPeca)}
+          legenda={`${comparacoesAnalise.total.pecas} de ${comparacoesAnalise.total.itens} peças avaliadas corretamente`}
+          formula={`${comparacoesAnalise.total.pecas} ÷ ${comparacoesAnalise.total.itens} × 100`}/>
+        <Numero rotulo="Tempo mediano de decisão" valor={comparacoesAnalise.tempoMediano==null?'—':`${nfmt(comparacoesAnalise.tempoMediano)} s`}
+          legenda={`${comparacoesAnalise.total.n} comparações · ${comparacoesAnalise.total.participantes} participantes`}/>
+      </div>
+      <Nota><b>Como interpretar:</b> “Dupla correta” só conta acerto se a pessoa classificar as duas peças corretamente. “Acertos por peça” considera cada uma separadamente. Uma média por comparação descreve respostas; a média de duplas corretas <b>por participante</b> é {p100(comparacoesAnalise.total.mediaPorParticipante)}. Os valores podem diferir quando as pessoas respondem quantidades diferentes.</Nota>
+      <div className="v5-grid">
+        <Painel titulo="Os três cenários possíveis" sub="Contagens reais das comparações sorteadas: não representam sugestão de quantas respostas o participante deveria marcar.">
+          {comparacoesAnalise.total.n?<div className="v5-grafico"><ResponsiveContainer width="100%" height={290}><PieChart>
+            <Pie data={comparacoesAnalise.cenarios.map(x=>({name:x.nome,value:x.n}))} nameKey="name" dataKey="value" innerRadius={67} outerRadius={102}>
+              {comparacoesAnalise.cenarios.map((x,i)=><Cell key={x.id} fill={COLORS[i]}/>)}</Pie>
+            <Tooltip contentStyle={hoverStyle} formatter={x=>[`${x} pares`,'Total']}/><Legend/>
+          </PieChart></ResponsiveContainer></div>:<Empty/>}
+        </Painel>
+        <Painel titulo="Acerto conforme a composição do par" sub="Para cada cenário, acertos integrais e erros; o número de observações aparece no tooltip.">
+          {comparacoesAnalise.total.n?<div className="v5-grafico"><ResponsiveContainer width="100%" height={290}><BarChart data={comparacoesAnalise.cenarios} margin={{top:18,right:16,bottom:28,left:0}}>
+            <CartesianGrid {...BASE_GRID}/><XAxis dataKey="nome" tick={{fontSize:11}} interval={0}/><YAxis allowDecimals={false}/><Tooltip contentStyle={hoverStyle}/><Legend/>
+            <Bar dataKey="exatas" name="Dupla correta" stackId="a" fill={COLORS[1]}/><Bar dataKey="erros" name="Com erro" stackId="a" fill={COLORS[3]}/>
+          </BarChart></ResponsiveContainer></div>:<Empty/>}
+        </Painel>
+        <Painel titulo="Qual configuração as pessoas marcaram?" sub="Quando o par era nenhum IA, um IA ou ambos IA, quantos itens a pessoa classificou como IA? É possível marcar ambos ou nenhum.">
+          {comparacoesAnalise.total.n?<div className="v5-grafico"><ResponsiveContainer width="100%" height={300}><BarChart data={comparacoesAnalise.contagens} margin={{top:15,right:12,bottom:26,left:0}}>
+            <CartesianGrid {...BASE_GRID}/><XAxis dataKey="nome" interval={0} tick={{fontSize:11}}/><YAxis allowDecimals={false}/><Tooltip contentStyle={hoverStyle}/><Legend/>
+            <Bar dataKey="marcou0" stackId="r" name="Marcou 0 IA" fill={COLORS[1]}/>
+            <Bar dataKey="marcou1" stackId="r" name="Marcou 1 IA" fill={COLORS[0]}/>
+            <Bar dataKey="marcou2" stackId="r" name="Marcou 2 IA" fill={COLORS[3]}/>
+          </BarChart></ResponsiveContainer></div>:<Empty/>}
+        </Painel>
+        <Painel titulo="Desempenho por tipo de mídia" sub="Duas taxas diferentes: acerto completo do par e acerto item a item, ambas baseadas nas comparações da modalidade.">
+          {comparacoesAnalise.tipos.some(x=>x.n)?<div className="v5-grafico"><ResponsiveContainer width="100%" height={290}><LineChart data={comparacoesAnalise.tipos.filter(x=>x.n)} margin={{top:15,right:18,bottom:16,left:0}}>
+            <CartesianGrid {...BASE_GRID}/><XAxis dataKey="nome"/><YAxis domain={[0,100]} unit="%"/><Tooltip formatter={v=>p100(v)} contentStyle={hoverStyle}/><Legend/>
+            <Line dataKey="porcentagemExata" name="Dupla correta" stroke={COLORS[0]} strokeWidth={3}/>
+            <Line dataKey="porcentagemPeca" name="Peças corretas" stroke="#008a75" strokeWidth={3}/>
+          </LineChart></ResponsiveContainer></div>:<Empty/>}
+        </Painel>
+      </div>
+      <Painel titulo="Mudou conforme o enunciado?" sub="Pergunta neutra, foco na IA ou foco na autoria humana. A comparação é descritiva; sem randomização controlada, diferenças não demonstram causalidade.">
+        <Tabela cabecalhos={['Enunciado','Comparações','Participantes','Dupla correta','Peças corretas']} linhas={comparacoesAnalise.perguntas.map(x=>[x.nome,x.n,x.participantes,p100(x.porcentagemExata),p100(x.porcentagemPeca)])}/>
+      </Painel>
+      <Painel titulo="Veja as operações" sub="A tabela traz as contagens e os cálculos, inclusive os pares com duas peças da mesma origem.">
+        <Tabela cabecalhos={['Composição real','Respondidas','Duplas certas','Acerto do par','Peças certas','Acerto por peça']} linhas={comparacoesAnalise.cenarios.map(x=>[x.nome,x.n,x.exatas,`${x.exatas} ÷ ${x.n} = ${p100(x.porcentagemExata)}`,x.pecas,`${x.pecas} ÷ ${x.itens} = ${p100(x.porcentagemPeca)}`])}/>
+        <Nota>Acerto por palpite uniforme: 25% para classificar integralmente os dois itens de forma independente e 50% para cada peça. Esses valores são apenas referências teóricas, não resultados observados nem obrigação de escolha.</Nota>
+      </Painel>
     </>}
     {aba==='comportamento'&&<>
       <div className="v5-intro"><h2>Como as pessoas decidem?</h2><p>Confiança declarada, resultado observado e quanto foi necessário ouvir antes de responder.</p></div>

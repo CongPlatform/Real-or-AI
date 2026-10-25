@@ -7,6 +7,7 @@ import ImportacaoMidiasEmLote from './ImportacaoMidiasEmLote';
 import OtimizarImagensExistentes from './OtimizarImagensExistentes';
 import RevisarTextosExistentes from './RevisarTextosExistentes';
 import NormalizarAudios from './NormalizarAudios';
+import ImportarComparacoesZip from './ImportarComparacoesZip';
 
 const CEN = ['nenhum é IA', 'um é IA', 'todos são IA'];
 const vazio = () => ({ arq: null, texto: '', ia: true });
@@ -408,6 +409,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
           <button className="cta" disabled={busy || !completo}>{busy ? 'Enviando…' : 'Adicionar'}</button>
         </form>
       </section>
+
+      <ImportarComparacoesZip recarregar={recarregar} />
 
       <ImportacaoEmLote recarregar={recarregar} />
 

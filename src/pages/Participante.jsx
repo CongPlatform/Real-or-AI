@@ -169,7 +169,7 @@ function Comparar({ rodada, n, total, onConfirm, busy, erro }) {
         <div className="barra"><i style={{ width: `${(n / total) * 100}%` }} /></div>
         <span>{n + 1}/{total}</span>
       </header>
-      <div className="bloco-pergunta"><span className="bloco-pergunta-etiqueta">COMPARE E DECIDA</span><h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2></div>
+      <div className="bloco-pergunta"><span className="bloco-pergunta-etiqueta">PARTE 2 DE 2 · COMPARE E DECIDA</span><h2 className="enunciado-teste">{enunciado(false, rodada.enquadramento, rodada.tipo)}</h2></div>
       <p className="mut">Avalie cada conteúdo separadamente. Ambos podem ter a mesma origem ou origens diferentes.</p>
       <div className="comp-grade">
         {itens.map((c, k) => (
@@ -433,10 +433,10 @@ export default function Participante() {
 
   if (etapa === 'carregando') return <div className="tela"><p className="mut">Carregando…</p></div>;
   if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} />;
-  if (etapa === 'p1_intro') return <ParteIntro titulo="Parte 1: um conteúdo por vez" onOk={() => setEtapa('p1')}
+  if (etapa === 'p1_intro') return <ParteIntro titulo={comps.length ? `Parte 1 de 2: ${total} conteúdos individuais` : `Teste: ${total} conteúdos individuais`} onOk={() => setEtapa('p1')}
       texto={['A classificação considera o conteúdo final apresentado. Se a imagem ou o som foi gerado por IA, a peça é IA, mesmo que a ideia, o roteiro ou o prompt sejam humanos.', 'Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
-  if (etapa === 'p2_intro') return <ParteIntro titulo="Parte 2: comparações" onOk={() => setEtapa('p2')}
-      texto={['Agora aparecerão dois conteúdos. Classifique cada um independentemente: ambos podem ser reais, ambos podem ser IA, ou podem ser diferentes.', 'Não é preciso escolher obrigatoriamente um de cada.']} />;
+  if (etapa === 'p2_intro') return <ParteIntro titulo={`Parte 2 de 2: ${comps.length} comparações`} onOk={() => setEtapa('p2')}
+      texto={['Você concluiu a parte individual. Agora verá dois conteúdos por pergunta, mas cada par vale somente uma das 30 decisões.', 'Classifique cada peça independentemente: ambas podem ser reais, ambas podem ser IA ou podem ter origens diferentes. Não é obrigatório escolher uma de cada.']} />;
   if (etapa === 'fim') return <Fim pid={pid} total={total || ler().nIndividuais || 24} />;
   if (etapa === 'p2') {
     const c = comps[j];
