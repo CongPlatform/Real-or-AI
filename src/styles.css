@@ -767,3 +767,12 @@ details p{line-height:1.65;font-size:.92rem}
 .cobertura-valores{display:flex;flex-direction:column;gap:3px;line-height:1.45}
 .cobertura-valores span{white-space:normal;overflow-wrap:anywhere}
 .cobertura-valores small{opacity:.7}
+
+/* V16.3 — importador de áudios humanos por grupo, mobile-first */
+.importacao-grupos-audio{display:flex;flex-direction:column;gap:12px}
+.importacao-grupos-audio .lote-nome{display:flex;flex-direction:column;gap:6px}
+.nomes-audio-grupo{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin:10px 0}
+.nomes-audio-grupo code{display:block;border:1px solid #ddd3fa;background:#f8f5ff;border-radius:8px;padding:10px;font-size:.86rem;overflow-wrap:anywhere}
+.audio-grupo-vinculo{display:grid;grid-template-columns:minmax(110px,1fr) minmax(100px,170px) auto;align-items:center;gap:10px}
+.audio-grupo-vinculo>span{overflow-wrap:anywhere}
+@media(max-width:600px){.audio-grupo-vinculo{grid-template-columns:1fr 1fr}.audio-grupo-vinculo>span{grid-column:1 / -1}}

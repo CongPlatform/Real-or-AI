@@ -4,6 +4,7 @@ import { TIPOS } from '../lib/opcoes';
 import { analisarTextosEmLote } from '../lib/textosLote';
 import { criarItem } from '../lib/conteudosStorage';
 import ImportacaoMidiasEmLote from './ImportacaoMidiasEmLote';
+import ImportarAudiosHumanosPorGrupo from './ImportarAudiosHumanosPorGrupo';
 import OtimizarImagensExistentes from './OtimizarImagensExistentes';
 import RevisarTextosExistentes from './RevisarTextosExistentes';
 import NormalizarAudios from './NormalizarAudios';
@@ -470,6 +471,8 @@ export default function Conteudos({ lista, comparacoes, recarregar }) {
       <ImportacaoTextosEmLote recarregar={atualizarTudo} />
 
       <RevisarTextosExistentes recarregar={atualizarTudo} />
+
+      <ImportarAudiosHumanosPorGrupo recarregar={atualizarTudo} />
 
       <ImportacaoMidiasEmLote tipo="audio" recarregar={atualizarTudo} />
 
