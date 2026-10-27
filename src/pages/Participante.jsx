@@ -60,7 +60,7 @@ function Wizard({ onFim, busy, erro, configuracoes }) {
       <main className="tela centro largo inicio-tela v24-home">
         <section className="cartao hero inicio-cartao v24-landing">
           <div className="v24-topbar">
-            <span className="v24-brand"><span className="v24-mark">R<span>IA?</span></span> REAL OU IA?</span>
+            <span className="v24-brand"><img className="v24-site-icon" src="/favicon-512.png" alt="Ícone oficial Real ou IA?" width="40" height="40" /> REAL OU IA?</span>
             <span className="v24-research">PESQUISA ESCOLAR <span>•</span> MATEMÁTICA AVANÇADA</span>
           </div>
           <div className="v24-hero-main">
@@ -378,18 +378,27 @@ function Fim({ pid, total }) {
     <span className="v16-share-caption">Seu teste já foi salvo. Os resultados aparecerão depois que as opções de compartilhamento forem fechadas.</span>
   </div></div>;
 
-  const acertosGerais = (Number(res.acertos) || 0) + (Number(res.comp?.acertos) || 0);
-  const totalGeral = (Number(res.total) || 0) + (Number(res.comp?.total) || 0);
+  const acertosInd = Number(res.acertos) || 0;
+  const totalInd = Number(res.total) || 0;
+  const acertosComp = Number(res.comp?.acertos) || 0;
+  const totalComp = Number(res.comp?.total) || 0;
+  const acertosGerais = acertosInd + acertosComp;
+  const totalGeral = totalInd + totalComp;
   const pct = Math.round((100 * acertosGerais) / Math.max(totalGeral, 1));
+  const estimativaBaseSalva = Number(ler().nDecisoes) || totalGeral;
+  const estimativaOriginal = ler().estimativa;
+  const estimativaSalva = estimativaOriginal != null && estimativaOriginal !== '' && Number.isFinite(Number(estimativaOriginal))
+    && estimativaBaseSalva === totalGeral && Number(estimativaOriginal) >= 0 && Number(estimativaOriginal) <= totalGeral
+    ? Number(estimativaOriginal) : null;
   async function imagemStories(compartilharArquivo = false) {
     setGerandoStory(true); setErroStory('');
     try {
       const valores = {
         acertosGerais, totalGeral,
-        acertosInd: Number(res.acertos) || 0, totalInd: Number(res.total) || 0,
-        acertosComp: Number(res.comp?.acertos) || 0, totalComp: Number(res.comp?.total) || 0,
-        estimativa: Number.isFinite(Number(ler().estimativa)) ? Number(ler().estimativa) : null,
-        estimativaBase: totalGeral,
+        acertosInd, totalInd,
+        acertosComp, totalComp,
+        estimativa: estimativaSalva,
+        estimativaBase: estimativaBaseSalva,
         url: 'real-ou-ia.cong.com.br',
       };
       const { blob } = await gerarStoryResultado(valores);
@@ -406,8 +415,11 @@ function Fim({ pid, total }) {
   const url = window.location.origin + window.location.pathname;
   return <div className="tela centro largo"><div className="cartao">
     <h2 className="pergunta">Seu resultado</h2>
-    <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} acertos em {totalGeral} decisões (Parte 1 + Parte 2)</span></div>
-    <div className="v23-resultados-partes"><div className="v23-result-parte"><span>PARTE 1 · INDIVIDUAIS</span><strong>{res.total ? Math.round(100*res.acertos/res.total) : 0}%</strong><p>{res.acertos} acertos de {res.total} questões</p></div><div className="v23-result-parte"><span>PARTE 2 · COMPARAÇÕES</span><strong>{res.comp?.total ? Math.round(100*res.comp.acertos/res.comp.total) : 0}%</strong><p>{res.comp?.acertos || 0} acertos de {res.comp?.total || 0} comparações</p></div></div>
+    <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} acertos em {totalGeral} decisões{totalComp>0?' (Parte 1 + Parte 2)':''}</span></div>
+    <div className={'v23-resultados-partes'+(totalComp===0?' v23-resultados-partes-uma':'' )}>
+      <div className="v23-result-parte"><span>PARTE 1 · INDIVIDUAIS</span><strong>{totalInd ? Math.round(100*acertosInd/totalInd) : 0}%</strong><p>{acertosInd} acertos de {totalInd} questões</p></div>
+      {totalComp > 0 && <div className="v23-result-parte"><span>PARTE 2 · COMPARAÇÕES</span><strong>{Math.round(100*acertosComp/Math.max(totalComp,1))}%</strong><p>{acertosComp} acertos de {totalComp} comparações</p></div>}
+    </div>
     <div className="tipos">{Object.entries(res.por_tipo || {}).map(([t,v]) => <div key={t} className="linha-tipo">
       <span>{TIPOS[t] || t}</span><div className="barra"><i style={{width:`${v.total ? 100*v.acertos/v.total : 0}%`}}/></div><em>{v.acertos}/{v.total}</em>
     </div>)}</div>

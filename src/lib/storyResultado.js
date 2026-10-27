@@ -9,9 +9,16 @@ function pct(acertos,total){
   return total ? Math.round((100*acertos)/total) : 0;
 }
 
+function limitar(n,min,max){
+  const valor = Number(n);
+  if (!Number.isFinite(valor)) return min;
+  return Math.max(min, Math.min(max, valor));
+}
+
 function modoLabel(total, totalInd, totalComp){
   if (totalInd === 20 && totalComp === 20) return 'Teste completo';
-  if (total > 0) return `Teste ${totalInd}+${totalComp}`;
+  if (totalComp === 0 && totalInd > 0) return 'Etapa individual';
+  if (total > 0) return `${total} decisões respondidas`;
   return 'Resultado do teste';
 }
 
@@ -29,8 +36,9 @@ function svgResultado(info={}){
   const acertosInd = Number(info.acertosInd) || 0;
   const totalComp = Number(info.totalComp) || 0;
   const acertosComp = Number(info.acertosComp) || 0;
-  const estimativa = Number.isFinite(Number(info.estimativa)) ? Number(info.estimativa) : null;
+  const estimativaBruta = info.estimativa == null || info.estimativa === '' ? null : Number(info.estimativa);
   const estimativaBase = Number.isFinite(Number(info.estimativaBase)) ? Number(info.estimativaBase) : totalGeral;
+  const estimativa = estimativaBruta != null && Number.isFinite(estimativaBruta) && estimativaBase === totalGeral && estimativaBruta >= 0 && estimativaBruta <= totalGeral ? estimativaBruta : null;
   const estimativaPct = estimativa != null && estimativaBase ? Math.round((100*estimativa)/estimativaBase) : null;
   const geralPct = pct(acertosGerais,totalGeral);
   const indPct = pct(acertosInd,totalInd);
@@ -38,12 +46,23 @@ function svgResultado(info={}){
   const modo = modoLabel(totalGeral,totalInd,totalComp);
   const subtitulo = totalComp > 0
     ? 'Pontuação separada da Parte 1 e da Parte 2'
-    : 'Pontuação da Parte 1';
+    : 'Pontuação da etapa individual';
   const url = esc(info.url || 'real-ou-ia.cong.com.br');
   const estimativaTxt = estimativa != null ? `${estimativa}/${estimativaBase} (${estimativaPct}%)` : '—';
   const comparacaoLegenda = totalComp > 0
     ? 'comparações totalmente corretas'
     : 'comparações';
+  const parte1X = 110;
+  const parte1Y = 780;
+  const parte1W = totalComp > 0 ? 400 : 860;
+  const parte2Card = totalComp > 0 ? `
+    <g filter="url(#shadow)">
+      <rect x="570" y="780" width="400" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
+      <text x="608" y="850" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Parte 2</text>
+      <text x="608" y="895" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">${esc(comparacaoLegenda)}</text>
+      <text x="608" y="988" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="110" fill="#FFFFFF">${compPct}%</text>
+      <text x="608" y="1030" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#C6F432">${acertosComp}/${totalComp}</text>
+    </g>` : '';
   return `<?xml version="1.0" encoding="UTF-8"?>
   <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
     <defs>
@@ -84,19 +103,13 @@ function svgResultado(info={}){
     </g>
 
     <g filter="url(#shadow)">
-      <rect x="110" y="780" width="400" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
+      <rect x="${parte1X}" y="${parte1Y}" width="${parte1W}" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
       <text x="148" y="850" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Parte 1</text>
       <text x="148" y="895" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">Classificações individuais</text>
       <text x="148" y="988" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="110" fill="#FFFFFF">${indPct}%</text>
       <text x="148" y="1030" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#C6F432">${acertosInd}/${totalInd}</text>
     </g>
-    <g filter="url(#shadow)">
-      <rect x="570" y="780" width="400" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
-      <text x="608" y="850" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Parte 2</text>
-      <text x="608" y="895" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">${esc(comparacaoLegenda)}</text>
-      <text x="608" y="988" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="110" fill="#FFFFFF">${compPct}%</text>
-      <text x="608" y="1030" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#C6F432">${acertosComp}/${totalComp}</text>
-    </g>
+    ${parte2Card}
 
     <g filter="url(#shadow)">
       <rect x="110" y="1110" width="860" height="200" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
@@ -112,8 +125,6 @@ function svgResultado(info={}){
       <text x="150" y="1550" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#3B2A64">reais daqueles produzidos com inteligência artificial.</text>
       <text x="150" y="1605" font-family="Arial, Helvetica, sans-serif" font-size="36" fill="#6A43FF" font-weight="800">${url}</text>
     </g>
-
-    <text x="540" y="1750" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">Imagem pronta para compartilhar nos Stories</text>
   </svg>`;
 }
 
