@@ -130,13 +130,13 @@ export default function ImportarComparacoesZip({ recarregar }) {
       for(const g of preparados)setStatus(s=>({...s,[g.chave]:{estado:'sucesso',mensagem:'Grupo ativado na nova coleção.'}}));
       await recarregar();
     }catch(e){
-      setAvisos([`Falha na ativação: ${e.message||e}. Os grupos anteriores permanecem ativos; confira se aplicou o SQL v20.`]);
+      setAvisos([`Falha na ativação: ${e.message||e}. Os grupos anteriores permanecem ativos; confira se aplicou os SQLs v19, v20 e v22 (liberação de áudio).`]);
     }finally{setEnviando(false);}
   }
 
   return <section className="painel larga importar-comparacoes-zip">
     <div className="comparacao-zip-head"><div><h2>Importar comparações por ZIP</h2>
-      <p className="mut">Grupos de imagem: quatro materiais como C1-REAL, C1-IA, C1.1-REAL e C1.1-IA. Grupos de áudio podem ser importados com dois materiais e completados depois. No teste, quaisquer dois arquivos diferentes do mesmo grupo podem formar uma comparação. Ao concluir um lote, os grupos anteriores da MESMA MODALIDADE são arquivados, sem apagar respostas ou conteúdos individuais.</p></div></div>
+      <p className="mut">Grupos de imagem: quatro materiais como C1-REAL, C1-IA, C1.1-REAL e C1.1-IA. Grupos de áudio podem ser importados com dois materiais e completados depois. Para ativar comparações de áudio, aplique também a migração SQL v22. No teste, quaisquer dois arquivos diferentes do mesmo grupo podem formar uma comparação. Ao concluir um lote, os grupos anteriores da MESMA MODALIDADE são arquivados, sem apagar respostas ou conteúdos individuais.</p></div></div>
     <details className="comparacao-zip-exemplos"><summary>Como nomear os arquivos e as pastas?</summary>
       <p>Use os nomes <code>C1-REAL.zip</code>, <code>C1-IA.zip</code>, <code>C1.1-REAL.zip</code> e <code>C1.1-IA.zip</code> (ou nomes equivalentes nos arquivos/pastas internas do ZIP). Aceita variantes C2.2, C3.3, C10.10 e espaços como C8 -  IA. Os arquivos de um grupo devem ter a mesma modalidade. Aceita imagens e áudios, além de textos e vídeos.</p>
     </details>
