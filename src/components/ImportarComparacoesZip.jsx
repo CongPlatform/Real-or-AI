@@ -83,56 +83,62 @@ export default function ImportarComparacoesZip({ recarregar }) {
   async function cadastrarGrupo(g){
     let id=null;
     try{
-      // Preserva dados históricos: comparação antiga fica inativa e recebe código de arquivo.
-      // Só administradores podem executar este RPC.
-      const {error:arquivoErro}=await supabase.rpc('admin_arquivar_grupo_v19',{p_tipo:g.tipo,p_codigo:g.codigo});
-      if(arquivoErro)throw arquivoErro;
+      // O novo grupo permanece INATIVO até a conclusão de todo o lote.
       const {data,error}=await supabase.from('comparacoes')
-        .insert({tipo:g.tipo,codigo_importacao:g.codigo,ativo:false})
+        .insert({tipo:g.tipo,codigo_importacao:null,ativo:false})
         .select('id').single();
       if(error)throw error;
       id=data.id;
-      for(let n=0;n<4;n++) await criarPeca({...g,id},g.itens[n],n+1);
-      // Ativar somente após os quatro arquivos e seus gabaritos serem salvos.
-      const {error:ativacaoErro}=await supabase.from('comparacoes').update({ativo:true}).eq('id',id);
-      if(ativacaoErro)throw ativacaoErro;
-      return {estado:'sucesso',mensagem:'Grupo com quatro materiais cadastrado e ativo.'};
+      for(let n=0;n<g.itens.length;n++) await criarPeca({...g,id},g.itens[n],n+1);
+      return {estado:'preparado',id,mensagem:`${g.itens.length} materiais enviados, aguardando ativação do lote.`};
     }catch(e){
-      midiasUsadas.current.clear(); // descarta referências que possam ter sido revertidas
+      midiasUsadas.current.clear();
       if(id){
-        // Em caso de erro, evitar manter uma comparação com apenas um item.
         try{
           const {data}=await supabase.from('conteudos').select('id').eq('comparacao_id',id);
           if(data?.length)await removerArquivosCriados(data.map(x=>x.id));
           await supabase.from('comparacoes').delete().eq('id',id);
-        }catch(err){console.warn('A limpeza da importação parcial falhou:',err);}
+        }catch(err){console.warn('Falha ao reverter o grupo:',err);}
       }
-      return {estado:'erro',mensagem:e?.code==='23505'
-        ? `Já existe uma comparação ${g.codigo} em ${ROTULOS[g.tipo]}. Não foi duplicada.`
-        : (e?.message||'Erro ao cadastrar comparação.')};
+      return {estado:'erro',mensagem:e?.message||'Erro ao cadastrar comparação.'};
     }
   }
 
   async function importar(){
-    if(enviando||selecionando||!pendentes.length)return;
-    if(!window.confirm('Substituir os grupos de mesmo código? Os antigos serão desativados e arquivados, sem excluir respostas históricas.'))return;
+    if(enviando||selecionando||!pendentes.length||erros.length)return;
+    const tipos=[...new Set(pendentes.map(g=>g.tipo))];
+    const confirmar=`SUBSTITUIR ${tipos.map(t=>ROTULOS[t].toUpperCase()).join(' E ')}`;
+    if(window.prompt(`A substituição será feita por MODALIDADE: todos os grupos de comparação ativos de ${tipos.join(' e ')} serão arquivados, mesmo que tenham outros códigos. As questões individuais e os registros históricos serão preservados.\n\nDigite: ${confirmar}`)!==confirmar)return;
     setEnviando(true);setAvisos([]);
-    let salvas=0;
-    for(const g of pendentes){
-      setStatus(s=>({...s,[g.key]:{estado:'enviando',mensagem:'Cadastrando os quatro materiais…'}}));
-      const r=await cadastrarGrupo(g);
-      setStatus(s=>({...s,[g.key]:r}));
-      if(r.estado==='sucesso')salvas++;
-    }
-    if(salvas)await recarregar();
-    setEnviando(false);
+    const preparados=[]; let falhou=false;
+    try{
+      for(const g of pendentes){
+        setStatus(s=>({...s,[g.key]:{estado:'enviando',mensagem:'Enviando os materiais…'}}));
+        const r=await cadastrarGrupo(g);
+        setStatus(s=>({...s,[g.key]:r}));
+        if(r.estado==='preparado')preparados.push({tipo:g.tipo,codigo:g.codigo,id:r.id,chave:g.key});
+        else falhou=true;
+      }
+      if(falhou){
+        setAvisos(['Houve uma falha de envio. Os grupos antigos continuam ativos. Nenhuma substituição foi executada. Os grupos preparados permanecerão inativos até uma nova importação.']);
+        return;
+      }
+      const {error}=await supabase.rpc('admin_substituir_modalidades_comparacao_v20',{
+        p_tipos:tipos,p_novos:preparados.map(({tipo,codigo,id})=>({tipo,codigo,id}))
+      });
+      if(error)throw error;
+      for(const g of preparados)setStatus(s=>({...s,[g.chave]:{estado:'sucesso',mensagem:'Grupo ativado na nova coleção.'}}));
+      await recarregar();
+    }catch(e){
+      setAvisos([`Falha na ativação: ${e.message||e}. Os grupos anteriores permanecem ativos; confira se aplicou o SQL v20.`]);
+    }finally{setEnviando(false);}
   }
 
   return <section className="painel larga importar-comparacoes-zip">
     <div className="comparacao-zip-head"><div><h2>Importar comparações por ZIP</h2>
-      <p className="mut">Cada grupo reúne quatro materiais: C1-REAL, C1-IA, C1.1-REAL e C1.1-IA. No teste, quaisquer dois arquivos diferentes do mesmo grupo podem formar uma comparação. Comparações anteriores são arquivadas, sem apagar respostas.</p></div></div>
+      <p className="mut">Grupos de imagem: quatro materiais como C1-REAL, C1-IA, C1.1-REAL e C1.1-IA. Grupos de áudio podem ser importados com dois materiais e completados depois. No teste, quaisquer dois arquivos diferentes do mesmo grupo podem formar uma comparação. Ao concluir um lote, os grupos anteriores da MESMA MODALIDADE são arquivados, sem apagar respostas ou conteúdos individuais.</p></div></div>
     <details className="comparacao-zip-exemplos"><summary>Como nomear os arquivos e as pastas?</summary>
-      <p>Use os nomes <code>C1-REAL.zip</code>, <code>C1-IA.zip</code>, <code>C1.1-REAL.zip</code> e <code>C1.1-IA.zip</code> (ou nomes equivalentes nos arquivos/pastas internas do ZIP). Os quatro devem ter a mesma modalidade. Aceita imagens e áudios, além de textos e vídeos.</p>
+      <p>Use os nomes <code>C1-REAL.zip</code>, <code>C1-IA.zip</code>, <code>C1.1-REAL.zip</code> e <code>C1.1-IA.zip</code> (ou nomes equivalentes nos arquivos/pastas internas do ZIP). Aceita variantes C2.2, C3.3, C10.10 e espaços como C8 -  IA. Os arquivos de um grupo devem ter a mesma modalidade. Aceita imagens e áudios, além de textos e vídeos.</p>
     </details>
     <label className="lote-nome" htmlFor="comparacoes-arquivos-zip">Selecione ZIPs de imagens, áudios, textos ou vídeos</label>
     <input type="file" id="comparacoes-arquivos-zip" accept=".zip,application/zip" multiple
@@ -140,12 +146,12 @@ export default function ImportarComparacoesZip({ recarregar }) {
     {selecionando&&<p role="status">Lendo e descompactando ZIPs…</p>}
     {avisos.length>0&&<div className="lote-erros" role="alert"><strong>Avisos de importação</strong><ul>{avisos.map((t,i)=><li key={i}>{t}</li>)}</ul></div>}
     {!!itens.length&&<>
-      <div className="comparacao-zip-resumo"><b>{grupos.length} grupos identificados</b><span>{grupos.filter(g=>!g.erros.length).length} grupos completos</span><span>{grupos.filter(g=>g.erros.length).length} incompletos ou inválidos</span></div>
+      <div className="comparacao-zip-resumo"><b>{grupos.length} grupos identificados</b><span>{grupos.filter(g=>!g.erros.length).length} grupos prontos</span><span>{grupos.filter(g=>g.erros.length).length} incompletos ou inválidos</span></div>
       <div className="comparacao-zip-grupos">
         {grupos.map(g=><article className="comparacao-zip-grupo" key={g.key}>
           <div className="comparacao-zip-titulo"><strong>{g.codigo} · {ROTULOS[g.tipo]}</strong>
             <span className={'lote-status '+(status[g.key]?.estado||'pendente')}>
-              {status[g.key]?.estado==='sucesso'?'Cadastrado':status[g.key]?.estado==='enviando'?'Enviando…':g.erros.length?'Incompleto':`Pronto: ${g.itens.length}/4`}
+              {status[g.key]?.estado==='sucesso'?'Ativado':status[g.key]?.estado==='preparado'?'Preparado':status[g.key]?.estado==='enviando'?'Enviando…':g.erros.length?'Incompleto':`Pronto: ${g.itens.length} materiais`}
             </span></div>
 
           {g.itens.map((item,n)=><div className="comparacao-zip-peca" key={item.origemZip+':'+item.arquivo}>
@@ -157,12 +163,12 @@ export default function ImportarComparacoesZip({ recarregar }) {
         </article>)}
       </div>
       <div className="comparacao-zip-acoes">
-        <button type="button" className="cta" disabled={enviando||selecionando||!pendentes.length} onClick={importar}>
-          {enviando?'Cadastrando comparações…':`Cadastrar ${pendentes.length} grupo(s)`}
+        <button type="button" className="cta" disabled={enviando||selecionando||!pendentes.length||!!erros.length} onClick={importar}>
+          {enviando?'Cadastrando comparações…':`Substituir comparações (${pendentes.length} grupos)`}
         </button>
         <button type="button" className="link" disabled={enviando||selecionando} onClick={limpar}>Limpar seleção</button>
       </div>
-      {!!erros.length&&<p className="erro" role="alert">Os grupos incompletos ou inválidos não serão enviados. Corrija seus nomes ou selecione os ZIPs que faltam.</p>}
+      {!!erros.length&&<p className="erro" role="alert">Grupos inválidos impedem a substituição do lote. Corrija seus nomes ou selecione os ZIPs que faltam.</p>}
     </>}
   </section>;
 }

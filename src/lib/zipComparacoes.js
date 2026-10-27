@@ -7,24 +7,24 @@ const LIMITE_TOTAL = 450 * 1024 * 1024;
 const LIMITE_ENTRADAS = 300;
 const EXTENSOES = {
   png: 'imagem', jpg: 'imagem', jpeg: 'imagem', webp: 'imagem',
-  mp3: 'audio', wav: 'audio', ogg: 'audio', m4a: 'audio',
+  mp3: 'audio', mpeg: 'audio', wav: 'audio', ogg: 'audio', m4a: 'audio',
   mp4: 'video', webm: 'video', txt: 'texto', md: 'texto',
 };
 const MIME = { png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',
-  mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',m4a:'audio/mp4',
+  mp3:'audio/mpeg',mpeg:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',m4a:'audio/mp4',
   mp4:'video/mp4',webm:'video/webm' };
 
 // O número base identifica a família; .1 e .2 identificam variantes adicionais.
 // Ex.: C11-IA + C11-REAL formam C11; C11.1-IA + C11-IA formam C11.1.
 export function reconhecerMarcador(nome) {
-  const semExt = String(nome).split('/').pop().replace(/\.(zip|png|jpe?g|webp|mp3|wav|ogg|m4a|mp4|webm|txt|md)$/i, '');
+  const semExt = String(nome).split('/').pop().replace(/\.(zip|png|jpe?g|webp|mp3|mpeg|wav|ogg|m4a|mp4|webm|txt|md)$/i, '');
   const m = /^C0*(\d+)(?:[._](\d+))?[-_\s]*(IA|REAL|HUMANO)$/i.exec(semExt.trim());
   if (!m) return null;
   const numero = Number(m[1]);
   if (!Number.isSafeInteger(numero) || numero < 1 || numero > 999999) return null;
   const posicao = m[2] == null ? null : Number(m[2]);
-  if (posicao !== null && ![1,2].includes(posicao)) return null;
-  return { codigo: `C${numero}`, posicao, ia: m[3].toUpperCase() === 'IA' };
+  if (posicao !== null && (!Number.isSafeInteger(posicao) || posicao < 1 || posicao > 999999)) return null;
+  return { codigo: `C${numero}`, posicao: posicao === null ? null : 1, ia: m[3].toUpperCase() === 'IA' };
 }
 
 function u16(v,o){return v.getUint16(o,true);}
@@ -111,7 +111,7 @@ export async function lerZipDeComparacoes(zip) {
   return itens;
 }
 
-// Um grupo contém quatro peças distintas: C1-REAL, C1-IA, C1.1-REAL, C1.1-IA.
+// Um grupo pode conter de 2 a 4 peças distintas: C1-REAL, C1-IA, C1.1-REAL, C1.1-IA.
 // O sorteio do par é realizado pelo servidor ao criar a sessão.
 export function agruparComparacoes(itens) {
   const mapa=new Map();
@@ -130,9 +130,12 @@ export function agruparComparacoes(itens) {
       if(identificadores.has(identidade))avisos.push(`Material repetido: ${identidade}.`);
       identificadores.add(identidade);
     }
-    const esperados=['base:IA','base:REAL','1:IA','1:REAL'];
-    if(pecas.length!==4 || esperados.some(x=>!identificadores.has(x)))
-      avisos.push(`São necessários quatro arquivos: ${codigo}-REAL, ${codigo}-IA, ${codigo}.1-REAL e ${codigo}.1-IA.`);
+    if(tipo==='imagem' || tipo==='audio') {
+      if(pecas.length<2 || pecas.length>4) avisos.push('Cada grupo deve conter entre dois e quatro materiais distintos.');
+    } else {
+      const esperados=['base:IA','base:REAL','1:IA','1:REAL'];
+      if(pecas.length!==4 || esperados.some(x=>!identificadores.has(x))) avisos.push('Este grupo precisa das quatro peças.');
+    }
     if(avisos.length)erros.push(`${codigo} (${tipo}): ${avisos.join(' ')}`);
     grupos.push({key,tipo,codigo,itens:[...pecas].sort((a,b)=>(a.posicao??0)-(b.posicao??0)||Number(a.ia)-Number(b.ia)),erros:avisos});
   }
