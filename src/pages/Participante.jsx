@@ -55,31 +55,49 @@ function Wizard({ onFim, busy, erro, configuracoes }) {
   const [r, setR] = useState({ faixa: '', genero: '', esc: '', freq: '', usos: [], conf: 0 });
 
   if (i < 0) {
+    const selecionado = disponiveis.find(c => c.modo === modo);
     return (
-      <div className="tela centro largo inicio-tela">
-        <div className="cartao hero inicio-cartao">
-          <div className="inicio-cabecalho">
-            <span className="inicio-simbolo" aria-hidden="true"><span>R</span><span>IA?</span></span>
-            <span className="inicio-etiqueta">PESQUISA ESCOLAR · MATEMÁTICA AVANÇADA</span>
+      <main className="tela centro largo inicio-tela v24-home">
+        <section className="cartao hero inicio-cartao v24-landing">
+          <div className="v24-topbar">
+            <span className="v24-brand"><span className="v24-mark">R<span>IA?</span></span> REAL OU IA?</span>
+            <span className="v24-research">PESQUISA ESCOLAR <span>•</span> MATEMÁTICA AVANÇADA</span>
           </div>
-          <div className="v23-eyebrow"><span className="v23-dot"/> UM DESAFIO PARA SUA PERCEPÇÃO</div>
-          <h1 className="inicio-titulo">Real <span>ou IA?</span></h1>
-          <div className="v23-visual" aria-hidden="true"><div className="v23-visual-lado"><span>01</span><strong>HUMANO</strong><small>Nem tudo é o que parece.</small></div><div className="v23-versus">VS</div><div className="v23-visual-lado v23-visual-ia"><span>02</span><strong>IA</strong><small>Você identifica a diferença?</small></div></div>
-          <p className="inicio-chamada">Você consegue distinguir conteúdos criados por pessoas daqueles produzidos por inteligência artificial?</p>
-          <div className="inicio-fatos" aria-label="Como funciona">
-            <span><strong>6</strong> perguntas iniciais</span>
-            <span><strong>{configuracoes.find(c=>c.modo===modo)?.individuais+configuracoes.find(c=>c.modo===modo)?.comparacoes||"Variável"}</strong> decisões</span>
-            <span><strong>4</strong> formatos</span>
+          <div className="v24-hero-main">
+            <div className="v24-copy">
+              <span className="v24-overline"><span className="v23-dot"/> VOCÊ CONFIA NOS SEUS OLHOS?</span>
+              <h1>Real <span>ou IA?</span></h1>
+              <p className="v24-lead">Nem tudo é o que parece.<br/><strong>Você consegue descobrir a diferença?</strong></p>
+              <p className="v24-desc">Explore imagens, textos, vídeos e áudios. Decida o que foi criado por uma pessoa e o que veio da inteligência artificial.</p>
+              <div className="v24-stats"><span><b>04</b> tipos de conteúdo</span><span><b>02</b> formas de jogar</span><span><b>100%</b> anônimo</span></div>
+            </div>
+            <div className="v24-poster" aria-hidden="true">
+              <div className="v24-noise"/>
+              <span className="v24-poster-label">QUEM CRIOU?</span>
+              <div className="v24-poster-faces"><div className="v24-human"><span>◉</span><strong>HUMANO</strong></div><span className="v24-poster-versus">VS</span><div className="v24-ai"><span>✦</span><strong>IA</strong></div></div>
+              <span className="v24-poster-foot">OLHE DE NOVO ↗</span>
+            </div>
           </div>
-          <div className="inicio-definicao">
-            <div className="inicio-definicao-titulo"><span aria-hidden="true">?</span><strong>O que consideramos IA?</strong></div>
-            <p>Vale a origem do <strong>conteúdo final</strong>. Um vídeo com roteiro humano e imagens geradas por IA, por exemplo, é classificado como IA. O mesmo critério vale para imagens, textos e áudios.</p>
+          <div className="v24-choose" id="escolha-do-teste">
+            <div className="v24-choose-head"><div><span className="v24-section-kicker">PASSO 01</span><h2>Escolha seu desafio</h2><p>O objetivo é o mesmo. Você escolhe até onde quer ir.</p></div><span className="v24-arrow" aria-hidden="true">↘</span></div>
+            <div className="v24-options">{disponiveis.map(c => {
+              const curto = c.modo !== 'completo';
+              return <button key={c.modo} type="button" aria-pressed={modo === c.modo} className={'v24-option '+(curto?'v24-short ':'v24-full ')+(modo === c.modo ? 'v24-selected' : '')} onClick={() => setModo(c.modo)}>
+                <span className="v24-option-top"><span className="v24-option-tag">{curto?'RÁPIDO E DIRETO':'EXPERIÊNCIA COMPLETA'}</span><span className="v24-radio">{modo === c.modo?'✓':''}</span></span>
+                <span className="v24-option-row"><strong>{c.individuais+c.comparacoes}</strong><span>questões</span></span>
+                <span className="v24-option-name">{curto?'Teste reduzido':'Teste completo'}</span>
+                <span className="v24-option-detail">{c.individuais} individuais <span>+</span> {c.comparacoes} comparações</span>
+                <span className="v24-option-bottom">{modo === c.modo?'Selecionado ✓':'Escolher este desafio ↗'}</span>
+              </button>;
+            })}</div>
+            <button type="button" className="cta v24-start" disabled={!selecionado || busy} onClick={() => setI(0)}>{selecionado ? `Começar teste de ${selecionado.individuais+selecionado.comparacoes} questões`:'Selecione um desafio para começar'} <span aria-hidden="true">→</span></button>
+            {erro && <p className="erro" role="alert">{erro}</p>}
+            <p className="v24-micro"><span>◇</span> Primeiro, seis perguntas rápidas sobre você. Nenhum dado pessoal de identificação é solicitado.</p>
           </div>
-          <div className="v23-modos"><strong>Escolha seu desafio</strong><p>Os dois modos têm o mesmo objetivo. Você decide quantas etapas quer enfrentar.</p><div className="v23-modos-grid">{disponiveis.map(c=><button type="button" key={c.modo} className={'v23-modo'+(modo===c.modo?' escolhido':'')} onClick={()=>setModo(c.modo)} aria-pressed={modo===c.modo}><span className="v23-modo-chip">{c.modo === 'completo' ? 'DESAFIO COMPLETO' : 'DESAFIO RÁPIDO'}</span><strong>{c.individuais+c.comparacoes}</strong><span>decisões</span><small>{c.individuais} individuais · {c.comparacoes} comparações</small><span className="v23-modo-check">{modo===c.modo?'✓ Selecionado':'Selecionar →'}</span></button>)}</div></div>
-          <p className="inicio-rodape">O teste é anônimo. Nos áudios, você pode ouvir mais trechos antes de responder.</p>
-          <button type="button" className="cta inicio-botao" disabled={!modo} onClick={() => setI(0)}>Começar pesquisa <span aria-hidden="true">→</span></button>
-        </div>
-      </div>
+          <details className="v24-how"><summary>O que conta como conteúdo de IA? <span>＋</span></summary><p>Consideramos a origem do <strong>conteúdo final</strong>. Um vídeo com roteiro humano, mas imagens geradas por inteligência artificial, por exemplo, é classificado como IA. O mesmo critério vale para áudios, textos e imagens.</p></details>
+          <div className="v24-footer"><span>REAL OU IA? · UMA PESQUISA SOBRE PERCEPÇÃO</span><span>CRIADO PARA FAZER VOCÊ QUESTIONAR O ÓBVIO.</span></div>
+        </section>
+      </main>
     );
   }
 
