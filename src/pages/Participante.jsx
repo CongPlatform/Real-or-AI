@@ -47,7 +47,9 @@ function Chips({ valor, onChange, opcoes, multi }) {
   );
 }
 
-function Wizard({ onFim, busy, erro }) {
+function Wizard({ onFim, busy, erro, configuracoes }) {
+  const [modo,setModo]=useState(null);
+  const disponiveis=configuracoes.filter(c=>c.ativo);
   const [i, setI] = useState(-1);
   const [r, setR] = useState({ faixa: '', genero: '', esc: '', freq: '', usos: [], conf: 0 });
 
@@ -63,15 +65,16 @@ function Wizard({ onFim, busy, erro }) {
           <p className="inicio-chamada">Você consegue distinguir conteúdos criados por pessoas daqueles produzidos por inteligência artificial?</p>
           <div className="inicio-fatos" aria-label="Como funciona">
             <span><strong>6</strong> perguntas iniciais</span>
-            <span><strong>40</strong> decisões</span>
+            <span><strong>{configuracoes.find(c=>c.modo===modo)?.individuais+configuracoes.find(c=>c.modo===modo)?.comparacoes||"Variável"}</strong> decisões</span>
             <span><strong>4</strong> formatos</span>
           </div>
           <div className="inicio-definicao">
             <div className="inicio-definicao-titulo"><span aria-hidden="true">?</span><strong>O que consideramos IA?</strong></div>
             <p>Vale a origem do <strong>conteúdo final</strong>. Um vídeo com roteiro humano e imagens geradas por IA, por exemplo, é classificado como IA. O mesmo critério vale para imagens, textos e áudios.</p>
           </div>
+          <div className="chips grande">{disponiveis.map(c=><button type="button" key={c.modo} className={'chip'+(modo===c.modo?' on':'')} onClick={()=>setModo(c.modo)}>Teste {c.modo}: {c.individuais+c.comparacoes} decisões ({c.individuais} individuais + {c.comparacoes} comparações)</button>)}</div>
           <p className="inicio-rodape">O teste é anônimo. Nos áudios, você pode ouvir mais trechos antes de responder.</p>
-          <button type="button" className="cta inicio-botao" onClick={() => setI(0)}>Começar pesquisa <span aria-hidden="true">→</span></button>
+          <button type="button" className="cta inicio-botao" disabled={!modo} onClick={() => setI(0)}>Começar pesquisa <span aria-hidden="true">→</span></button>
         </div>
       </div>
     );
@@ -100,7 +103,7 @@ function Wizard({ onFim, busy, erro }) {
         <div className="nav">
           <button className="link" onClick={() => setI(i - 1)}>Voltar</button>
           {(p.multi || ultima) && (
-            <button className="cta" disabled={!ok || busy} onClick={() => (ultima ? onFim(r) : setI(i + 1))}>
+            <button className="cta" disabled={!ok || busy} onClick={() => (ultima ? onFim({...r,modo}) : setI(i + 1))}>
               {ultima ? (busy ? 'Carregando…' : 'Ir para o teste') : 'Continuar'}
             </button>
           )}
@@ -386,6 +389,7 @@ export default function Participante() {
   const [total, setTotal] = useState(0);
   const [jaRespondidas, setJaRespondidas] = useState(0);
   const [totalDecisoes, setTotalDecisoes] = useState(40);
+  const [configuracoes,setConfiguracoes]=useState([]);
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -394,7 +398,7 @@ export default function Participante() {
     const comparacoes = roteiro.filter((r) => r.kind === 'comparacao');
     const pendentes = individuais.filter((r) => !r.respondida);
     const paresPendentes = comparacoes.filter((r) => !r.respondida);
-    if (![30, 40].includes(roteiro.length)) throw new Error('O banco não conseguiu recuperar um roteiro válido.');
+    if (roteiro.length < 1) throw new Error('O banco não conseguiu recuperar um roteiro válido.');
     // Roteiros de 30 decisões iniciados antes da atualização permanecem íntegros.
     // Novas sessões usam 40 decisões, com 20 individuais e 20 comparações.
     setTotalDecisoes(roteiro.length);
@@ -415,6 +419,8 @@ export default function Participante() {
   useEffect(() => {
     let ativo = true;
     (async () => {
+      const configs=await supabase.rpc('configuracoes_teste_v19');
+      if(ativo && !configs.error)setConfiguracoes(configs.data||[]);
       const s = ler();
       try {
         if (s.concluido) {
@@ -468,6 +474,8 @@ export default function Participante() {
       }
       const tinhaSessaoLocal = !!ler().pid;
       let participante = ler().pid || await cadastrar();
+      const selecionarModo=await supabase.rpc('selecionar_modo_v19',{p_participante:participante,p_modo:f.modo});
+      if(selecionarModo.error)throw selecionarModo.error;
       let resposta = await supabase.rpc('obter_teste_v3', { p_participante: participante });
       // Uma limpeza entre a abertura da página e o clique em "Começar"
       // também pode invalidar o ID. Tentar UMA vez com novo participante.
@@ -513,7 +521,7 @@ export default function Participante() {
   }
 
   if (etapa === 'carregando') return <div className="tela"><p className="mut">Carregando…</p></div>;
-  if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} />;
+  if (etapa === 'intro') return <Wizard onFim={iniciar} busy={busy} erro={erro} configuracoes={configuracoes} />;
   if (etapa === 'p1_intro') return <ParteIntro titulo={comps.length ? `Parte 1 de 2: ${total} conteúdos individuais` : `Teste: ${total} conteúdos individuais`} onOk={() => setEtapa('p1')}
       texto={['A classificação considera o conteúdo final apresentado. Se a imagem ou o som foi gerado por IA, a peça é IA, mesmo que a ideia, o roteiro ou o prompt sejam humanos.', 'Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
   if (etapa === 'p2_intro') return <ParteIntro titulo={`Parte 2 de 2: ${comps.length} comparações`} onOk={() => setEtapa('p2')}

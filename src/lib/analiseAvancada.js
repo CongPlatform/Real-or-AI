@@ -48,11 +48,11 @@ export function analisarAvancado(d, incluirPilotos = false) {
   const individ = Array.isArray(d?.individuais) ? d.individuais : [];
   const comps = Array.isArray(d?.comparacoes) ? d.comparacoes : [];
   const itens = Array.isArray(d?.itens) ? d.itens : [];
-  // Somente o protocolo novo 20 + 20 entra na análise oficial.
-  // Sessões do protocolo antigo de 30 decisões continuam no banco para auditoria.
-  const completas = sessoes.filter(s => s.finalizado && s.sorteadas === 40 &&
-    Number(s.individuais_sorteadas) === 20 && Number(s.comparacoes_sorteadas) === 20 &&
-    Number(s.individuais_respondidas) === 20 && Number(s.comparacoes_respondidas) === 20);
+  // Consolidação por sessão válida. O protocolo fica registrado com seus denominadores reais.
+  const completas = sessoes.filter(s => s.finalizado && Number(s.sorteadas)>0 &&
+    Number(s.individuais_respondidas) === Number(s.individuais_sorteadas) &&
+    Number(s.comparacoes_respondidas) === Number(s.comparacoes_sorteadas) &&
+    Number(s.sorteadas) === Number(s.individuais_sorteadas)+Number(s.comparacoes_sorteadas));
   const validas = completas.filter(s => !s.excluir_analise || incluirPilotos);
   const ids = new Set(validas.map(s=>s.id));
   const ri = individ.filter(r=>ids.has(r.participante_id));
