@@ -262,11 +262,11 @@ function Fim({ pid, total }) {
   const [busy, setBusy] = useState(false);
   const [detalhado, setDetalhado] = useState(false);
   const [shareMsg, setShareMsg] = useState('');
-  const [opcoesAbertas, setOpcoesAbertas] = useState(false);
+  const [menuAlternativo, setMenuAlternativo] = useState(false);
   const [compartilhando, setCompartilhando] = useState(false);
-  const chaveCompartilhamento = `realia_resultado_compartilhado_v18_${pid || 'sem_id'}`;
+  const chaveCompartilhamento = `realia_resultado_compartilhado_v16_${pid || 'sem_id'}`;
   const [liberado, setLiberado] = useState(() => {
-    try { return Boolean(pid && localStorage.getItem(`realia_resultado_compartilhado_v18_${pid}`) === '1'); }
+    try { return Boolean(pid && localStorage.getItem(`realia_resultado_compartilhado_v16_${pid}`) === '1'); }
     catch { return false; }
   });
 
@@ -275,53 +275,40 @@ function Fim({ pid, total }) {
     try { localStorage.setItem(chaveCompartilhamento, '1'); } catch { /* navegador sem storage */ }
   }
 
-  // Compartilhamento nativo: liberar somente quando a janela fechar.
-  // Não existe desbloqueio ANTES de chamar navigator.share.
-  async function compartilhar() {
-    if (compartilhando) return;
+  function compartilhar() {
+    // Chamada síncrona no clique para preservar a ativação de usuário.
+    // A pontuação só aparece depois de ENCERRADA a janela de compartilhamento.
     const url = window.location.origin + window.location.pathname;
-    const dados = {
-      title: 'Real ou IA?',
-      text: 'Eu participei do Real ou IA? Você consegue identificar quais conteúdos foram feitos por inteligência artificial? Faça o teste também!',
-      url
-    };
+    const dados = { title: 'Real ou IA?', text: 'Eu participei do Real ou IA? Você consegue identificar quais conteúdos foram feitos por inteligência artificial? Faça o teste também!', url };
+    setShareMsg('');
     if (typeof navigator.share === 'function') {
       setCompartilhando(true);
       try {
-        await navigator.share(dados);
-        liberarResultado();
-      } catch (e) {
-        // Cancelar/fechar a folha de compartilhamento também significa que ela foi fechada.
-        if (e?.name === 'AbortError') liberarResultado();
-        else { setShareMsg('Use uma das opções para compartilhar o desafio.'); setOpcoesAbertas(true); }
-      } finally {
+        Promise.resolve(navigator.share(dados)).then(() => {
+          liberarResultado();
+        }).catch(e => {
+          if (e?.name === 'AbortError') {
+            // Fechar a janela (inclusive sem escolher um aplicativo) conclui esta etapa.
+            liberarResultado();
+          } else {
+            setShareMsg('Seu navegador não abriu o compartilhamento. Escolha uma das opções abaixo.');
+            setMenuAlternativo(true);
+          }
+        }).finally(() => setCompartilhando(false));
+      } catch {
         setCompartilhando(false);
+        setShareMsg('Escolha uma opção de compartilhamento.');
+        setMenuAlternativo(true);
       }
       return;
     }
-    // Desktop sem Web Share API: abrir opções locais; desbloquear ao FECHAR essa janela.
-    setShareMsg('');
-    setOpcoesAbertas(true);
+    setMenuAlternativo(true);
   }
 
-  function fecharOpcoes() {
-    setOpcoesAbertas(false);
+  function fecharMenuAlternativo() {
+    setMenuAlternativo(false);
     liberarResultado();
   }
-
-  const urlCompartilhar = typeof window === 'undefined' ? '' : window.location.origin + window.location.pathname;
-  const textoCompartilhar = encodeURIComponent('Eu fiz o teste Real ou IA? Faça também: ' + urlCompartilhar);
-  const menuCompartilhamento = opcoesAbertas && <div className="v18-share-overlay" role="presentation">
-    <div className="v18-share-dialog" role="dialog" aria-modal="true" aria-label="Compartilhar o desafio">
-      <h2>Compartilhe o desafio</h2>
-      <p>Escolha onde quer enviar o link para um amigo.</p>
-      <a href={`https://wa.me/?text=${textoCompartilhar}`} target="_blank" rel="noopener noreferrer">Compartilhar no WhatsApp</a>
-      <a href={`mailto:?subject=${encodeURIComponent('Real ou IA?')}&body=${textoCompartilhar}`}>Compartilhar por e-mail</a>
-      <button type="button" onClick={copiarLink}>Copiar link</button>
-      {shareMsg && <p role="status">{shareMsg}</p>}
-      <button className="v18-share-fechar" type="button" onClick={fecharOpcoes}>Fechar compartilhamento e ver resultado</button>
-    </div>
-  </div>;
 
   async function copiarLink() {
     const url = window.location.origin + window.location.pathname;
@@ -341,7 +328,7 @@ function Fim({ pid, total }) {
   if (!res) {
     return <div className="tela centro largo"><div className="cartao">
       <h2 className="pergunta">Última pergunta</h2>
-      <p className="mut">Considerando todas as {total} decisões (classificações individuais e comparações), quantas você acha que acertou?</p>
+      <p className="mut">Considerando todas as {total} decisões (classificações individuais e comparações), quantas você acha que acertou? Cada comparação conta como um acerto somente quando as duas peças estão corretas.</p>
       <div className="estima"><b>{est}</b><span>de {total}</span></div>
       <input type="range" min="0" max={total} value={est} onChange={e=>setEst(+e.target.value)}/>
       <button className="cta" disabled={busy} onClick={ver}>{busy?'Enviando…':'Concluir minha participação'}</button>
@@ -353,25 +340,26 @@ function Fim({ pid, total }) {
     <div className="v16-share-simbolo" aria-hidden="true">✓</div>
     <h1>Você chegou ao final!</h1>
     <p>Compartilhe o desafio com um amigo e descubra quantas respostas você acertou, inclusive em cada comparação.</p>
-    <button className="cta" type="button" disabled={compartilhando} onClick={compartilhar}>{compartilhando?'Compartilhamento aberto…':'Compartilhar e ver meus resultados'}</button>
-    {menuCompartilhamento}
-    {shareMsg && !opcoesAbertas && <p role="status">{shareMsg}</p>}
-    <span className="v16-share-caption">Seu teste já foi salvo.</span>
+    <button className="cta" type="button" onClick={compartilhar} disabled={compartilhando}>{compartilhando ? 'Aguardando fechar o compartilhamento…' : 'Compartilhar e ver meus resultados'}</button>
+    {menuAlternativo && <div className="v18-share-menu" role="dialog" aria-label="Opções de compartilhamento">
+      <h2>Compartilhe o desafio</h2>
+      <a href={`https://wa.me/?text=${encodeURIComponent('Eu fiz o teste Real ou IA? Faça também: '+window.location.origin+window.location.pathname)}`} target="_blank" rel="noopener noreferrer">Abrir WhatsApp</a>
+      <button type="button" onClick={copiarLink}>Copiar link da pesquisa</button>
+      {shareMsg && <p className="mut" role="status">{shareMsg}</p>}
+      <button type="button" className="cta" onClick={fecharMenuAlternativo}>Fechar compartilhamento e ver resultados</button>
+    </div>}
+    <span className="v16-share-caption">Seu teste já foi salvo. Os resultados aparecerão depois que as opções de compartilhamento forem fechadas.</span>
   </div></div>;
 
-  const acertosIndividuais = Number(res.acertos) || 0;
-  const totalIndividuais = Number(res.total) || 0;
-  const acertosComparacoes = Number(res.comp?.acertos) || 0;
-  const totalComparacoes = Number(res.comp?.total) || 0;
-  const acertosGerais = acertosIndividuais + acertosComparacoes;
-  const totalGeral = totalIndividuais + totalComparacoes;
+  const acertosGerais = (Number(res.acertos) || 0) + (Number(res.comp?.acertos) || 0);
+  const totalGeral = (Number(res.total) || 0) + (Number(res.comp?.total) || 0);
   const pct = Math.round((100 * acertosGerais) / Math.max(totalGeral, 1));
   if (detalhado) return <ResultadoDetalhado pid={pid} onVoltar={() => setDetalhado(false)} />;
   const url = window.location.origin + window.location.pathname;
   return <div className="tela centro largo"><div className="cartao">
     <h2 className="pergunta">Seu resultado</h2>
-    <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} de {totalGeral} decisões corretas</span></div>
-    <p className="mut">Parte 1: {acertosIndividuais} de {totalIndividuais} classificações individuais corretas.</p>
+    <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} acertos em {totalGeral} decisões (Parte 1 + Parte 2)</span></div>
+    <p className="mut">Parte 1: você acertou {res.acertos} de {res.total} classificações individuais.</p>
     <div className="tipos">{Object.entries(res.por_tipo || {}).map(([t,v]) => <div key={t} className="linha-tipo">
       <span>{TIPOS[t] || t}</span><div className="barra"><i style={{width:`${v.total ? 100*v.acertos/v.total : 0}%`}}/></div><em>{v.acertos}/{v.total}</em>
     </div>)}</div>
@@ -385,7 +373,6 @@ function Fim({ pid, total }) {
       <button type="button" onClick={copiarLink}>Copiar link</button>
     </div>
     {shareMsg && <p role="status" className="mut">{shareMsg}</p>}
-    {menuCompartilhamento}
   </div></div>;
 }
 
@@ -531,7 +518,7 @@ export default function Participante() {
       texto={['A classificação considera o conteúdo final apresentado. Se a imagem ou o som foi gerado por IA, a peça é IA, mesmo que a ideia, o roteiro ou o prompt sejam humanos.', 'Você verá conteúdos de origens diferentes, com perguntas variadas. Arraste para a esquerda quando achar que é IA, ou para a direita quando achar que é humano.', 'Nos áudios, o primeiro trecho depende da duração da gravação. Escute, classifique ou libere mais um trecho.']} />;
   if (etapa === 'p2_intro') return <ParteIntro titulo={`Parte 2 de 2: ${comps.length} comparações`} onOk={() => setEtapa('p2')}
       texto={[`Você concluiu a parte individual. Agora verá dois conteúdos por pergunta, mas cada par vale somente uma das ${totalDecisoes} decisões.`, 'Escolha nenhum, somente o primeiro, somente o segundo ou ambos, conforme a pergunta peça IA ou produções humanas. Os dois materiais podem ter a mesma origem.']} />;
-  if (etapa === 'fim') return <Fim pid={pid} total={ler().nDecisoes || totalDecisoes} />;
+  if (etapa === 'fim') return <Fim pid={pid} total={ler().nDecisoes || totalDecisoes || 40} />;
   if (etapa === 'p2') {
     const c = comps[j];
     return <Comparar key={c.id} rodada={c} n={jaRespondidas + fila.length + j} total={totalDecisoes}

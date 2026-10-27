@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, Component } from 'react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList,
-  Legend, Line, LineChart, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis,
+  Legend, Line, LineChart, Pie, PieChart, PolarAngleAxis, PolarGrid,
   Radar, RadarChart, ResponsiveContainer, Scatter, ScatterChart,
   Tooltip, XAxis, YAxis, ZAxis
 } from 'recharts';
@@ -98,11 +98,41 @@ function Histograma({dados}){
 function RadarModalidade({dados,chaves=['acerto']}){
   const values=(dados||[]).filter(x=>chaves.some(k=>x[k]!=null&&Number.isFinite(Number(x[k]))));
   if(!values.length)return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><RadarChart data={values} outerRadius="70%">
-    <PolarGrid/><PolarAngleAxis dataKey="nome"/><PolarRadiusAxis domain={[0,100]} tick={{fontSize:11}}/>
-    {chaves.map((k,i)=><Radar key={k} name={nomes[k]||k} dataKey={k} stroke={PALETA[i===1?4:i]} fill={PALETA[i===1?4:i]} fillOpacity={i===0?.17:.05} strokeWidth={3} dot/>) }
-    {chaves.length>1&&<Legend verticalAlign="bottom"/>}<Tooltip contentStyle={tipStyle} formatter={fpct}/>
+  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><RadarChart data={values} outerRadius="69%">
+    <PolarGrid/><PolarAngleAxis dataKey="nome" tick={{fontSize:12}}/>
+    {chaves.map((k,i)=><Radar key={k} name={nomes[k]||k} dataKey={k} stroke={PALETA[i%PALETA.length]} fill={PALETA[i%PALETA.length]} fillOpacity={i===0?.12:.045} strokeWidth={2.7}/>)}
+    <Legend/><Tooltip contentStyle={tipStyle} formatter={fpct}/>
   </RadarChart></ResponsiveContainer></div>;
+}
+function DispersaoGenerica({slide}){
+  const validos=(slide.dados||[]).filter(x=>Number.isFinite(Number(x.x))&&Number.isFinite(Number(x.y)));
+  if(!validos.length)return <SemDados/>;
+  const grupos=slide.grupos||[...new Set(validos.map(x=>x.grupo||'Observações'))];
+  const limiteX=Math.max(1,...validos.map(x=>Number(x.x)));
+  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%">
+    <ScatterChart margin={{top:20,right:28,bottom:42,left:15}}>
+      <CartesianGrid {...grade}/>
+      <XAxis type="number" dataKey="x" name={slide.rotuloX||'Quantidade'} domain={slide.maxX===100?[0,100]:[0,Math.ceil(limiteX*1.08)]} allowDecimals={false} label={{value:slide.rotuloX||'Quantidade',position:'insideBottom',offset:-14}}/>
+      <YAxis type="number" dataKey="y" name={slide.rotuloY||'Acerto (%)'} domain={[0,100]} unit="%"/>
+      <ZAxis dataKey="z" range={[80,210]}/>
+      <Tooltip cursor={{strokeDasharray:'3 3'}} content={({active,payload})=>!active||!payload?.length?null:<div className="v18-tooltip"><strong>{payload[0]?.payload?.nome||'Observação'}</strong><span>{slide.rotuloX||'Eixo X'}: {fnum(payload[0]?.payload?.x,1)}</span><span>{slide.rotuloY||'Eixo Y'}: {fpct(payload[0]?.payload?.y)}</span></div>}/>
+      {grupos.map((g,i)=><Scatter key={g} name={g} data={validos.filter(x=>(x.grupo||'Observações')===g)} fill={PALETA[i%PALETA.length]} fillOpacity={.75}/>)}
+      {grupos.length>1&&<Legend/>}
+    </ScatterChart>
+  </ResponsiveContainer></div>;
+}
+function MapaCalor({slide}){
+  const rows=slide.dados||[], cols=slide.chaves||[];
+  if(!rows.length||!cols.length)return <SemDados/>;
+  const color=v=>v==null?'#F0EDF7':`rgba(101,69,246,${Math.min(.94,.12+.79*Math.max(0,Math.min(100,Number(v)))/100)})`;
+  return <div className="v18-calor" role="table" aria-label={slide.titulo}>
+    <div className="v18-calor-head" style={{gridTemplateColumns:`minmax(100px,1.4fr) repeat(${cols.length},minmax(85px,1fr))`}}><span>Modalidade</span>{cols.map(x=><strong key={x}>{slide.rotulos?.[x]||x}</strong>)}</div>
+    {rows.map(row=><div className="v18-calor-row" key={row.nome} style={{gridTemplateColumns:`minmax(100px,1.4fr) repeat(${cols.length},minmax(85px,1fr))`}}>
+      <strong>{row.nome}</strong>{cols.map(k=><div key={k} style={{background:color(row[k]),color:row[k]>=57?'white':'#16122D'}} title={`${row.nome}, ${slide.rotulos?.[k]||k}: ${fpct(row[k])}`}>
+        {fpct(row[k])}<small>{row[`${k}_n`]!=null?`n=${fnum(row[`${k}_n`])}`:''}</small>
+      </div>)}
+    </div>)}<p>Quanto mais intenso o roxo, maior a porcentagem. Uma célula sem respostas aparece como —.</p>
+  </div>;
 }
 function Nuvem({dados}){
   if(!dados?.length)return <SemDados/>;
@@ -111,74 +141,6 @@ function Nuvem({dados}){
     <YAxis type="number" dataKey="y" domain={[0,100]} unit="%" name="Nota"/><ZAxis range={[70,70]}/>
     <Tooltip contentStyle={tipStyle} formatter={(v,n)=>[n==='Nota'?fpct(v):fnum(v),n]}/><Scatter data={dados} fill={PALETA[0]} fillOpacity={.7}/>
   </ScatterChart></ResponsiveContainer></div>;
-}
-
-// Gráfico de pontos sobre uma régua comum de 0 a 100: legível mesmo projetado em telão.
-function Pontos({dados=[],chaves=['acerto']}) {
-  const rows=dados.filter(x=>chaves.some(k=>x[k]!=null&&Number.isFinite(Number(x[k]))));
-  if(!rows.length)return <SemDados/>;
-  return <div className="v18-pontos" role="img" aria-label="Comparativo em pontos sobre uma escala de zero a cem">
-    <div className="v18-pontos-escala"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
-    {rows.map((row,i)=><div className="v18-pontos-linha" key={`${row.nome}-${i}`}>
-      <strong title={row.nome}>{row.nome}</strong>
-      <div className="v18-pontos-trilho">{chaves.map((k,j)=>row[k]!=null&&Number.isFinite(Number(row[k]))
-        ?<span key={k} className="v18-ponto" style={{left:`${clip(row[k])}%`,background:PALETA[j===1?4:j]}} title={`${nomes[k]||k}: ${fpct(row[k])}`}/>:null)}</div>
-      <small>{chaves.map(k=>row[k]==null?'—':fpct(row[k])).join(' · ')}</small>
-    </div>)}
-    {chaves.length>1&&<div className="v18-pontos-legenda">{chaves.map((k,j)=><span key={k}><i style={{background:PALETA[j===1?4:j]}}/>{nomes[k]||k}</span>)}</div>}
-  </div>;
-}
-// Cada célula indica acerto naquele cruzamento entre modalidade e origem verdadeira.
-function Calor({dados=[]}) {
-  if(!dados.some(x=>x.ia?.n||x.humano?.n))return <SemDados/>;
-  return <div className="v18-calor">
-    <div className="v18-calor-cab"><span>Modalidade</span><b>Era IA</b><b>Era humano</b></div>
-    {dados.map((r,i)=><div className="v18-calor-linha" key={`${r.nome}-${i}`}><strong>{r.nome}</strong>
-      {['ia','humano'].map(k=>{const x=r[k]||{};const v=x.n?clip(100*x.acertos/x.n):null;
-        return <div key={k} className="v18-calor-cel" style={{background:v==null?'#F0EDF7':`rgba(91,61,245,${.10+.75*(v/100)})`,color:v!=null&&v>67?'#fff':'#201B36'}}>
-          <strong>{v==null?'—':fpct(v)}</strong><span>{x.acertos||0} / {x.n||0} respostas</span>
-        </div>;})}
-    </div>)}
-    <p className="v18-calor-nota">Quanto mais escura a célula, maior a taxa de acerto. Uma célula vazia indica ausência de respostas.</p>
-  </div>;
-}
-// Nuvem: o tamanho da bolha indica a quantidade de classificações recebidas.
-function Bolhas({dados=[]}) {
-  const rows=dados.filter(x=>x.n>0&&x.pctIA!=null).map(x=>({x:x.n,y:x.pctIA,z:x.n,nome:x.nome,origem:x.origem_ia}));
-  if(!rows.length)return <SemDados/>;
-  const ia=rows.filter(x=>x.origem===true),hum=rows.filter(x=>x.origem===false);
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%">
-    <ScatterChart margin={{top:25,right:42,bottom:46,left:8}}><CartesianGrid {...grade}/>
-      <XAxis type="number" dataKey="x" name="Avaliações" allowDecimals={false} domain={[0,'dataMax+1']} label={{value:'Quantidade de avaliações por material',position:'insideBottom',offset:-12}}/>
-      <YAxis type="number" dataKey="y" name="Votos IA (%)" domain={[0,100]} unit="%"/>
-      <ZAxis type="number" dataKey="z" name="Exibições" range={[60,470]}/>
-      <Tooltip contentStyle={tipStyle} cursor={{strokeDasharray:'3 3'}} content={({active,payload})=>active&&payload?.[0]?.payload
-        ?<div className="v18-tooltip"><b>{payload[0].payload.nome}</b><span>{payload[0].payload.x} avaliações · {fpct(payload[0].payload.y)} votos IA</span><span>Origem: {payload[0].payload.origem?'IA':'Humano'}</span></div>:null}/>
-      <Legend/><Scatter name="Era IA" data={ia} fill={PALETA[0]} fillOpacity={.65}/>
-      <Scatter name="Era humano" data={hum} fill={PALETA[4]} fillOpacity={.65}/>
-    </ScatterChart></ResponsiveContainer></div>;
-}
-function Quartis({dados=[]}) {
-  const values=dados.filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!values.length)return <SemDados/>;
-  const q=f=>{const pos=(values.length-1)*f,low=Math.floor(pos),high=Math.ceil(pos);return values[low]+(values[high]-values[low])*(pos-low);};
-  const min=clip(values[0]),q1=clip(q(.25)),md=clip(q(.5)),q3=clip(q(.75)),max=clip(values.at(-1));
-  return <div className="v18-quartis" role="img" aria-label={`Distribuição de ${values.length} notas. Mínimo ${fpct(min)}, mediana ${fpct(md)}, máximo ${fpct(max)}`}>
-    <div className="v18-quartis-eixo"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
-    <div className="v18-quartis-trilho"><div className="v18-quartis-bigode" style={{left:`${min}%`,width:`${max-min}%`}}/>
-      <div className="v18-quartis-caixa" style={{left:`${q1}%`,width:`${q3-q1}%`}}/>
-      <i className="v18-quartis-mediana" style={{left:`${md}%`}}/>
-    </div><div className="v18-quartis-valores">{[['Mínimo',min],['Q1',q1],['Mediana',md],['Q3',q3],['Máximo',max]].map(([l,v])=><div key={l}><small>{l}</small><b>{fpct(v)}</b></div>)}</div>
-    <p>Metade das notas está dentro da caixa (entre Q1 e Q3). A linha escura representa a mediana. Base: {values.length} pessoas.</p>
-  </div>;
-}
-function Mosaico({valor}) {
-  const v=clip(valor);if(v==null)return <SemDados/>;
-  const squares=Math.round(v);
-  return <div className="v18-mosaico"><div className="v18-mosaico-celulas" role="img" aria-label={`${fpct(v)} de acerto, mostrado como cem quadrados`}>
-    {Array.from({length:100},(_,i)=><span key={i} className={i<squares?'aceso':''}/>)}</div>
-    <p><b>{fpct(v)}</b><span>Cada quadradinho representa aproximadamente 1 ponto percentual.</span></p>
-  </div>;
 }
 function Matriz({q={}}){
   const ia=(q.vv||0)+(q.vf||0),hum=(q.ff||0)+(q.fv||0);
@@ -210,13 +172,10 @@ function Visual({slide}){
     case 'empilhado':return <Empilhado slide={slide}/>;
     case 'histograma':return <Histograma dados={slide.dados}/>;
     case 'radar':return <RadarModalidade dados={slide.dados} chaves={slide.chaves||['acerto']}/>;
+    case 'dispersao-flex':return <DispersaoGenerica slide={slide}/>;
+    case 'calor':return <MapaCalor slide={slide}/>;
     case 'dispersao':return <Nuvem dados={slide.dados}/>;
     case 'matriz':return <Matriz q={slide.dados}/>;
-    case 'pontos':return <Pontos dados={slide.dados} chaves={slide.chaves||['acerto']}/>;
-    case 'calor':return <Calor dados={slide.dados}/>;
-    case 'bolhas':return <Bolhas dados={slide.dados}/>;
-    case 'quartis':return <Quartis dados={slide.dados}/>;
-    case 'mosaico':return <Mosaico valor={slide.valor}/>;
     case 'tabela':return <Tabela dados={slide.dados}/>;
     case 'formula':return <div className="v16-formula"><span>FÓRMULA</span><p>{slide.formula}</p><strong>{Array.isArray(slide.valor)?`${fpct(slide.valor[0])} a ${fpct(slide.valor[1])}`:fpct(slide.valor)}</strong><small>{slide.base}</small></div>;
     case 'conclusao':return <div className="v16-conclusao"><b>01 · Descrever</b><span>O que cada medida realmente representa</span><b>02 · Comparar</b><span>Parte 1 versus Parte 2, sem misturar bases</span><b>03 · Contextualizar</b><span>Limites de amostra, exposição e participação</span></div>;

@@ -64,10 +64,10 @@ export function analisarAvancado(d, incluirPilotos = false) {
     const acertosPares = c.filter(r=>r.acertou).length;
     return { ...p, acertos, n_ind:a.length, pct_ind:pct(acertos,a.length),
       n_comp:c.length, acertosPares, pct_comp:pct(acertosPares,c.length),
-      // Só novas estimativas explicitamente registradas sobre 40 decisões podem
-      // ser comparadas à nota geral. Registros antigos (base desconhecida) ficam fora.
-      pct_geral: (a.length+c.length) ? pct(acertos+acertosPares,a.length+c.length) : null,
-      estimativa_pct: p.estimativa == null || Number(p.estimativa_base_decisoes) !== 40 ? null : 100*Number(p.estimativa)/40,
+      pct_geral:pct(acertos+acertosPares,a.length+c.length),
+      // A estimativa é expressa em decisões TOTAIS (40 para o protocolo atual),
+      // nunca somente nas questões individuais da Parte 1.
+      estimativa_pct: p.estimativa == null || !(a.length+c.length) ? null : 100*p.estimativa/(a.length+c.length),
       tempo_med_s: mediana([...a,...c].map(r=>sec(r.tempo_ms))),
       duracao_teste_s: p.inicio && p.fim ? (new Date(p.fim) - new Date(p.inicio))/1000 : null };
   });
