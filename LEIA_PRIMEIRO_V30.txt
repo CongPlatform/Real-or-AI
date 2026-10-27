@@ -1,0 +1,18 @@
+REAL OU IA? — PATCH V30
+
+Correção:
+- melhora a legibilidade das legendas na apresentação completa;
+- remove a legenda problemática do gráfico de dispersão por modalidade;
+- passa a rotular diretamente os pontos do gráfico com os nomes das modalidades;
+- evita sobreposição entre legenda e rótulo do eixo em gráficos da apresentação.
+
+Instalação:
+1. Substitua os arquivos do patch sobre a v29.
+2. Rode:
+   npm install
+   npm run build
+   git add .
+   git commit -m "Corrige legendas da apresentacao v30"
+   git push
+
+Não precisa executar SQL.
