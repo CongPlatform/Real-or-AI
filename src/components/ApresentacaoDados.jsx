@@ -16,6 +16,15 @@ const grade={stroke:'#E7E3F2',strokeDasharray:'4 5'};
 const nomes={acerto:'Acertos',disseIa:'Marcou IA',porcentagemExata:'Duplas certas',porcentagemPeca:'Peças certas',
   observada:'Média observada',previsao:'Projeção ilustrativa',exatas:'Duplas certas',erros:'Duplas com erro',
   marcou0:'Marcou 0 IA',marcou1:'Marcou 1 IA',marcou2:'Marcou 2 IA',iniciadas:'Iniciadas',completas:'Concluídas'};
+// Legendas externas ao SVG: evitam a sobreposição do Recharts com eixos e rótulos.
+function LegendaExterna({itens=[]}){
+  if(itens.length<2)return null;
+  return <div className="v31-legenda" role="list" aria-label="Legenda do gráfico">{itens.map((it,i)=><span role="listitem" key={it.nome} className="v31-legenda-item"><i style={{background:it.cor||PALETA[i%PALETA.length]}}/>{it.nome}</span>)}</div>;
+}
+function MolduraGrafico({children,legenda=[],compacta=false}){
+ return <div className={'v31-grafico'+(compacta?' v31-grafico-compacto':'')}><div className="v31-grafico-corpo">{children}</div><LegendaExterna itens={legenda}/></div>;
+}
+const legendaChaves=(chaves,cores)=>chaves.map((k,i)=>({nome:nomes[k]||k,cor:cores?.[i]||PALETA[i%PALETA.length]}));
 function SemDados({texto='Ainda não existem observações suficientes para este gráfico.'}){
   return <div className="v16-sem-dados">{texto}</div>;
 }
@@ -32,12 +41,11 @@ function Anel({valor}){
 function Donut({dados}){
   const rows=(dados||[]).filter(x=>Number(x.valor)>0);
   if(!rows.length)return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><PieChart>
+  return <MolduraGrafico legenda={rows.map((r,i)=>({nome:r.nome,cor:PALETA[i%PALETA.length]}))}><ResponsiveContainer width="100%" height="100%"><PieChart>
     <Pie data={rows} nameKey="nome" dataKey="valor" innerRadius="52%" outerRadius="73%" paddingAngle={2} isAnimationActive={false}>
       {rows.map((r,i)=><Cell key={r.nome} fill={PALETA[i%PALETA.length]}/>)}</Pie>
-    <Legend verticalAlign="bottom" height={55} formatter={s=><span className="v16-legend">{s}</span>}/>
     <Tooltip contentStyle={tipStyle} formatter={v=>[fnum(v),'Quantidade']}/>
-  </PieChart></ResponsiveContainer></div>;
+  </PieChart></ResponsiveContainer></MolduraGrafico>;
 }
 function Barras({slide}){
   const {dados=[],chaves=[],eixoMax}=slide;
@@ -45,7 +53,7 @@ function Barras({slide}){
   const rows=dados.filter(row=>keys.some(k=>row[k]!=null && Number.isFinite(Number(row[k]))));
   if(!rows.length)return <SemDados/>;
   const height=Math.max(260,Math.min(570,rows.length*48+80));
-  return <div className="v16-chart" style={{height:'100%',minHeight:height<320?240:undefined}}>
+  return <MolduraGrafico legenda={keys.length>1?legendaChaves(keys):[]}>
     <ResponsiveContainer width="100%" height="100%"><BarChart layout="vertical" data={rows} margin={{top:12,right:45,bottom:12,left:10}} barSize={Math.max(14,Math.min(33,240/rows.length))}>
       <CartesianGrid {...grade} horizontal={false}/><XAxis type="number" domain={[0,eixoMax||'auto']} tickFormatter={v=>eixoMax===100?`${v}%`:fnum(v)} tick={{fontSize:11}}/>
       <YAxis type="category" dataKey="nome" width={125} tick={{fontSize:11}}/>
@@ -53,37 +61,35 @@ function Barras({slide}){
       {keys.map((k,i)=><Bar key={k} name={nomes[k]||k} dataKey={k} fill={PALETA[i%PALETA.length]} radius={[0,8,8,0]} isAnimationActive={false}>
         {keys.length===1&&<LabelList dataKey={k} position="right" formatter={v=>eixoMax===100?fpct(v):fnum(v)} style={{fontSize:11,fill:'#201B36'}}/>}
       </Bar>)}
-      {keys.length>1&&<Legend/>}
     </BarChart></ResponsiveContainer>
-  </div>;
+  </MolduraGrafico>;
 }
 function Linhas({slide}){
   const {dados=[],chaves=[],eixoMax}=slide;
   if(!dados.some(row=>chaves.some(k=>row[k]!=null&&Number.isFinite(Number(row[k])))))return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={dados} margin={{top:28,right:28,bottom:18,left:8}}>
+  return <MolduraGrafico legenda={legendaChaves(chaves,chaves.map((k,i)=>PALETA[i===1?4:i]))}><ResponsiveContainer width="100%" height="100%"><LineChart data={dados} margin={{top:28,right:28,bottom:18,left:8}}>
     <CartesianGrid {...grade}/><XAxis dataKey={slide.vis==='evolucao'?'n':'nome'} tick={{fontSize:11}} interval="preserveStartEnd"/>
     <YAxis domain={[0,eixoMax||'auto']} tickFormatter={v=>eixoMax===100?`${v}%`:fnum(v)}/>
-    <Tooltip contentStyle={tipStyle} formatter={(v,k)=>[eixoMax===100?fpct(v):fnum(v,1),nomes[k]||k]}/><Legend/>
+    <Tooltip contentStyle={tipStyle} formatter={(v,k)=>[eixoMax===100?fpct(v):fnum(v,1),nomes[k]||k]}/>
     {chaves.map((k,i)=><Line key={k} name={nomes[k]||k} dataKey={k} stroke={PALETA[i===1?4:i]} strokeWidth={3} dot={dados.length<35?{r:3}:false} type="monotone" connectNulls={false} isAnimationActive={false}/>)}
-  </LineChart></ResponsiveContainer></div>;
+  </LineChart></ResponsiveContainer></MolduraGrafico>;
 }
 function Areas({slide}){
   const dados=slide.dados||[];
   if(!dados.length)return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={dados} margin={{top:22,right:20,bottom:18,left:8}}>
+  return <MolduraGrafico legenda={legendaChaves(slide.chaves||['iniciadas','completas'],(slide.chaves||['iniciadas','completas']).map((k,i)=>PALETA[i===1?4:i]))}><ResponsiveContainer width="100%" height="100%"><AreaChart data={dados} margin={{top:22,right:20,bottom:18,left:8}}>
     <CartesianGrid {...grade}/><XAxis dataKey="nome" tick={{fontSize:10}} interval="preserveStartEnd"/>
-    <YAxis tickFormatter={fnum} allowDecimals={false}/><Tooltip contentStyle={tipStyle}/><Legend/>
+    <YAxis tickFormatter={fnum} allowDecimals={false}/><Tooltip contentStyle={tipStyle}/>
     {(slide.chaves||['iniciadas','completas']).map((k,i)=><Area key={k} dataKey={k} name={nomes[k]||k} stroke={PALETA[i===1?4:i]} fill={PALETA[i===1?4:i]} fillOpacity={.15} strokeWidth={3} type="monotone" isAnimationActive={false}/>)}
-  </AreaChart></ResponsiveContainer></div>;
+  </AreaChart></ResponsiveContainer></MolduraGrafico>;
 }
 function Empilhado({slide}){
   const dados=slide.dados||[];
   if(!dados.some(x=>slide.chaves?.some(k=>Number(x[k])>0)))return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={dados} margin={{top:20,right:15,bottom:30,left:0}}>
-    <CartesianGrid {...grade}/><XAxis dataKey="nome" tick={{fontSize:11}} interval={0}/><YAxis allowDecimals={false}/>
-    <Legend/><Tooltip contentStyle={tipStyle}/>
+  return <MolduraGrafico legenda={legendaChaves(slide.chaves||[])}><ResponsiveContainer width="100%" height="100%"><BarChart data={dados} margin={{top:20,right:15,bottom:30,left:0}}>
+    <CartesianGrid {...grade}/><XAxis dataKey="nome" tick={{fontSize:11}} interval={0}/><YAxis allowDecimals={false}/><Tooltip contentStyle={tipStyle}/>
     {(slide.chaves||[]).map((k,i)=><Bar key={k} dataKey={k} name={nomes[k]||k} stackId="s" fill={PALETA[i%PALETA.length]} isAnimationActive={false}/>)}
-  </BarChart></ResponsiveContainer></div>;
+  </BarChart></ResponsiveContainer></MolduraGrafico>;
 }
 function Histograma({dados}){
   if(!dados?.length)return <SemDados/>;
@@ -98,28 +104,26 @@ function Histograma({dados}){
 function RadarModalidade({dados,chaves=['acerto']}){
   const values=(dados||[]).filter(x=>chaves.some(k=>x[k]!=null&&Number.isFinite(Number(x[k]))));
   if(!values.length)return <SemDados/>;
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%"><RadarChart data={values} outerRadius="69%">
+  return <MolduraGrafico legenda={legendaChaves(chaves)}><ResponsiveContainer width="100%" height="100%"><RadarChart data={values} outerRadius="69%">
     <PolarGrid/><PolarAngleAxis dataKey="nome" tick={{fontSize:12}}/>
-    {chaves.map((k,i)=><Radar key={k} name={nomes[k]||k} dataKey={k} stroke={PALETA[i%PALETA.length]} fill={PALETA[i%PALETA.length]} fillOpacity={i===0?.12:.045} strokeWidth={2.7}/>)}
-    <Legend/><Tooltip contentStyle={tipStyle} formatter={fpct}/>
-  </RadarChart></ResponsiveContainer></div>;
+    {chaves.map((k,i)=><Radar key={k} name={nomes[k]||k} dataKey={k} stroke={PALETA[i%PALETA.length]} fill={PALETA[i%PALETA.length]} fillOpacity={i===0?.12:.045} strokeWidth={2.7}/>)}<Tooltip contentStyle={tipStyle} formatter={fpct}/>
+  </RadarChart></ResponsiveContainer></MolduraGrafico>;
 }
 function DispersaoGenerica({slide}){
   const validos=(slide.dados||[]).filter(x=>Number.isFinite(Number(x.x))&&Number.isFinite(Number(x.y)));
   if(!validos.length)return <SemDados/>;
   const grupos=slide.grupos||[...new Set(validos.map(x=>x.grupo||'Observações'))];
   const limiteX=Math.max(1,...validos.map(x=>Number(x.x)));
-  return <div className="v16-chart"><ResponsiveContainer width="100%" height="100%">
-    <ScatterChart margin={{top:20,right:28,bottom:42,left:15}}>
+  return <MolduraGrafico legenda={grupos.length>1?grupos.map((g,i)=>({nome:g,cor:PALETA[i%PALETA.length]})):[]}><ResponsiveContainer width="100%" height="100%">
+    <ScatterChart margin={{top:24,right:24,bottom:66,left:15}}>
       <CartesianGrid {...grade}/>
-      <XAxis type="number" dataKey="x" name={slide.rotuloX||'Quantidade'} domain={slide.maxX===100?[0,100]:[0,Math.ceil(limiteX*1.08)]} allowDecimals={false} label={{value:slide.rotuloX||'Quantidade',position:'insideBottom',offset:-14}}/>
+      <XAxis type="number" dataKey="x" name={slide.rotuloX||'Quantidade'} domain={slide.maxX===100?[0,100]:[0,Math.ceil(limiteX*1.08)]} allowDecimals={false} label={{value:slide.rotuloX||'Quantidade',position:'insideBottom',offset:-20}}/>
       <YAxis type="number" dataKey="y" name={slide.rotuloY||'Acerto (%)'} domain={[0,100]} unit="%"/>
       <ZAxis dataKey="z" range={[80,210]}/>
       <Tooltip cursor={{strokeDasharray:'3 3'}} content={({active,payload})=>!active||!payload?.length?null:<div className="v18-tooltip"><strong>{payload[0]?.payload?.nome||'Observação'}</strong><span>{slide.rotuloX||'Eixo X'}: {fnum(payload[0]?.payload?.x,1)}</span><span>{slide.rotuloY||'Eixo Y'}: {fpct(payload[0]?.payload?.y)}</span></div>}/>
-      {grupos.map((g,i)=><Scatter key={g} name={g} data={validos.filter(x=>(x.grupo||'Observações')===g)} fill={PALETA[i%PALETA.length]} fillOpacity={.75}/>)}
-      {grupos.length>1&&<Legend/>}
+      {grupos.map((g,i)=><Scatter key={g} name={g} data={validos.filter(x=>(x.grupo||'Observações')===g)} fill={PALETA[i%PALETA.length]} fillOpacity={.82}/>)}
     </ScatterChart>
-  </ResponsiveContainer></div>;
+  </ResponsiveContainer></MolduraGrafico>;
 }
 function MapaCalor({slide}){
   const rows=slide.dados||[], cols=slide.chaves||[];
