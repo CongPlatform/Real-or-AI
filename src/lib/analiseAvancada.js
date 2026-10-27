@@ -65,6 +65,7 @@ export function analisarAvancado(d, incluirPilotos = false) {
     return { ...p, acertos, n_ind:a.length, pct_ind:pct(acertos,a.length),
       n_comp:c.length, acertosPares, pct_comp:pct(acertosPares,c.length),
       pct_geral:pct(acertos+acertosPares,a.length+c.length),
+      modalidade_teste: p.modo_teste || (a.length===20 && c.length===20 ? 'completo' : 'reduzido'),
       // A estimativa é expressa em decisões TOTAIS (40 para o protocolo atual),
       // nunca somente nas questões individuais da Parte 1.
       estimativa_pct: p.estimativa == null || !(a.length+c.length) ? null : 100*p.estimativa/(a.length+c.length),

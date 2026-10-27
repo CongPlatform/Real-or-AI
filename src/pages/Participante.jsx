@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { gerarStoryResultado, nomeArquivoStories, baixarBlob, compartilharImagem } from '../lib/storyResultado';
 import { FAIXAS, GENEROS, ESCOLARIDADES, FREQ, USOS, TIPOS } from '../lib/opcoes';
 import SwipeCard from '../components/SwipeCard';
 import Midia from '../components/Midia';
@@ -61,7 +62,9 @@ function Wizard({ onFim, busy, erro, configuracoes }) {
             <span className="inicio-simbolo" aria-hidden="true"><span>R</span><span>IA?</span></span>
             <span className="inicio-etiqueta">PESQUISA ESCOLAR · MATEMÁTICA AVANÇADA</span>
           </div>
+          <div className="v23-eyebrow"><span className="v23-dot"/> UM DESAFIO PARA SUA PERCEPÇÃO</div>
           <h1 className="inicio-titulo">Real <span>ou IA?</span></h1>
+          <div className="v23-visual" aria-hidden="true"><div className="v23-visual-lado"><span>01</span><strong>HUMANO</strong><small>Nem tudo é o que parece.</small></div><div className="v23-versus">VS</div><div className="v23-visual-lado v23-visual-ia"><span>02</span><strong>IA</strong><small>Você identifica a diferença?</small></div></div>
           <p className="inicio-chamada">Você consegue distinguir conteúdos criados por pessoas daqueles produzidos por inteligência artificial?</p>
           <div className="inicio-fatos" aria-label="Como funciona">
             <span><strong>6</strong> perguntas iniciais</span>
@@ -72,7 +75,7 @@ function Wizard({ onFim, busy, erro, configuracoes }) {
             <div className="inicio-definicao-titulo"><span aria-hidden="true">?</span><strong>O que consideramos IA?</strong></div>
             <p>Vale a origem do <strong>conteúdo final</strong>. Um vídeo com roteiro humano e imagens geradas por IA, por exemplo, é classificado como IA. O mesmo critério vale para imagens, textos e áudios.</p>
           </div>
-          <div className="chips grande">{disponiveis.map(c=><button type="button" key={c.modo} className={'chip'+(modo===c.modo?' on':'')} onClick={()=>setModo(c.modo)}>Teste {c.modo}: {c.individuais+c.comparacoes} decisões ({c.individuais} individuais + {c.comparacoes} comparações)</button>)}</div>
+          <div className="v23-modos"><strong>Escolha seu desafio</strong><p>Os dois modos têm o mesmo objetivo. Você decide quantas etapas quer enfrentar.</p><div className="v23-modos-grid">{disponiveis.map(c=><button type="button" key={c.modo} className={'v23-modo'+(modo===c.modo?' escolhido':'')} onClick={()=>setModo(c.modo)} aria-pressed={modo===c.modo}><span className="v23-modo-chip">{c.modo === 'completo' ? 'DESAFIO COMPLETO' : 'DESAFIO RÁPIDO'}</span><strong>{c.individuais+c.comparacoes}</strong><span>decisões</span><small>{c.individuais} individuais · {c.comparacoes} comparações</small><span className="v23-modo-check">{modo===c.modo?'✓ Selecionado':'Selecionar →'}</span></button>)}</div></div>
           <p className="inicio-rodape">O teste é anônimo. Nos áudios, você pode ouvir mais trechos antes de responder.</p>
           <button type="button" className="cta inicio-botao" disabled={!modo} onClick={() => setI(0)}>Começar pesquisa <span aria-hidden="true">→</span></button>
         </div>
@@ -118,6 +121,7 @@ function ParteIntro({ titulo, texto, onOk }) {
     <div className="tela centro largo">
       <div className="cartao">
         <h2 className="pergunta">{titulo}</h2>
+        {titulo.includes('Parte 2') && <div className="v23-alerta" role="note"><span className="v23-alerta-icone" aria-hidden="true">!</span><div><strong>ATENÇÃO: LEIA A PERGUNTA ANTES DE RESPONDER!</strong><p>Uma questão pode pedir quais conteúdos são de <b>IA</b> e outra pode pedir quais foram feitos por <b>humanos</b>. Sua resposta precisa seguir exatamente o que o enunciado solicita. Pode ser nenhum, somente um ou ambos!</p></div></div>}
         {texto.map((t, k) => <p key={k} className="mut">{t}</p>)}
         <button className="cta" onClick={onOk}>Continuar</button>
       </div>
@@ -267,6 +271,8 @@ function Fim({ pid, total }) {
   const [shareMsg, setShareMsg] = useState('');
   const [menuAlternativo, setMenuAlternativo] = useState(false);
   const [compartilhando, setCompartilhando] = useState(false);
+  const [gerandoStory, setGerandoStory] = useState(false);
+  const [erroStory, setErroStory] = useState('');
   const chaveCompartilhamento = `realia_resultado_compartilhado_v16_${pid || 'sem_id'}`;
   const [liberado, setLiberado] = useState(() => {
     try { return Boolean(pid && localStorage.getItem(`realia_resultado_compartilhado_v16_${pid}`) === '1'); }
@@ -324,7 +330,7 @@ function Fim({ pid, total }) {
     const { data, error } = await supabase.rpc('finalizar_participante_v3', { p_participante: pid, p_estimativa: est });
     setBusy(false);
     if (error) return alert('Não foi possível enviar. Tente de novo.');
-    salvar({ resultado: data, concluido: true });
+    salvar({ resultado: data, concluido: true, estimativa: est });
     setRes(data);
   }
 
@@ -357,16 +363,38 @@ function Fim({ pid, total }) {
   const acertosGerais = (Number(res.acertos) || 0) + (Number(res.comp?.acertos) || 0);
   const totalGeral = (Number(res.total) || 0) + (Number(res.comp?.total) || 0);
   const pct = Math.round((100 * acertosGerais) / Math.max(totalGeral, 1));
+  async function imagemStories(compartilharArquivo = false) {
+    setGerandoStory(true); setErroStory('');
+    try {
+      const valores = {
+        acertosGerais, totalGeral,
+        acertosInd: Number(res.acertos) || 0, totalInd: Number(res.total) || 0,
+        acertosComp: Number(res.comp?.acertos) || 0, totalComp: Number(res.comp?.total) || 0,
+        estimativa: Number.isFinite(Number(ler().estimativa)) ? Number(ler().estimativa) : null,
+        estimativaBase: totalGeral,
+        url: 'real-ou-ia.cong.com.br',
+      };
+      const { blob } = await gerarStoryResultado(valores);
+      const nome = nomeArquivoStories(valores);
+      if (compartilharArquivo) {
+        const sucesso = await compartilharImagem(blob, nome);
+        if (!sucesso) { baixarBlob(blob, nome); setErroStory('A imagem foi baixada. Abra o Instagram e adicione-a ao seu Story.'); }
+      } else baixarBlob(blob, nome);
+    } catch(e) {
+      setErroStory('Não foi possível gerar a imagem neste navegador. Tente atualizar a página.');
+    } finally { setGerandoStory(false); }
+  }
   if (detalhado) return <ResultadoDetalhado pid={pid} onVoltar={() => setDetalhado(false)} />;
   const url = window.location.origin + window.location.pathname;
   return <div className="tela centro largo"><div className="cartao">
     <h2 className="pergunta">Seu resultado</h2>
     <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} acertos em {totalGeral} decisões (Parte 1 + Parte 2)</span></div>
-    <p className="mut">Parte 1: você acertou {res.acertos} de {res.total} classificações individuais.</p>
+    <div className="v23-resultados-partes"><div className="v23-result-parte"><span>PARTE 1 · INDIVIDUAIS</span><strong>{res.total ? Math.round(100*res.acertos/res.total) : 0}%</strong><p>{res.acertos} acertos de {res.total} questões</p></div><div className="v23-result-parte"><span>PARTE 2 · COMPARAÇÕES</span><strong>{res.comp?.total ? Math.round(100*res.comp.acertos/res.comp.total) : 0}%</strong><p>{res.comp?.acertos || 0} acertos de {res.comp?.total || 0} comparações</p></div></div>
     <div className="tipos">{Object.entries(res.por_tipo || {}).map(([t,v]) => <div key={t} className="linha-tipo">
       <span>{TIPOS[t] || t}</span><div className="barra"><i style={{width:`${v.total ? 100*v.acertos/v.total : 0}%`}}/></div><em>{v.acertos}/{v.total}</em>
     </div>)}</div>
     {res.comp?.total > 0 && <p className="mut">Parte 2: você acertou as duas peças em {res.comp.acertos} de {res.comp.total} comparações.</p>}
+    <div className="v23-stories"><div><strong>Seu resultado merece um Story!</strong><p>Crie uma imagem vertical 1080 × 1920 com seus acertos nas duas partes e convide seus amigos a participar.</p></div><div className="v23-stories-acoes"><button type="button" className="cta" disabled={gerandoStory} onClick={()=>imagemStories(false)}>{gerandoStory?'Gerando imagem…':'↓ Baixar imagem para Stories'}</button><button type="button" className="v16-share-sec" disabled={gerandoStory} onClick={()=>imagemStories(true)}>Compartilhar imagem</button></div>{erroStory && <p role="status">{erroStory}</p>}</div>
     <div className="detalhe-acoes">
       <button type="button" className="cta" onClick={() => setDetalhado(true)}>Ver minhas respostas detalhadas</button>
       <button type="button" className="v16-share-sec" onClick={compartilhar}>Compartilhar novamente</button>

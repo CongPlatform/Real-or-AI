@@ -160,15 +160,37 @@ function ResumoFonte({d}){
 }
 export default function Dashboard({dados,atual,avancado,atualizar,comparacoesItens=[],comparacoesDisponiveis=false}){
   const [incluirPilotos,setIncluirPilotos]=useState(false);
+  const [filtroModo,setFiltroModo]=useState('todos');
   const [aba,setAba]=useState('visao');
   const [apresentando,setApresentando]=useState(false);
   const [mudando,setMudando]=useState('');
   const [erro,setErro]=useState('');
   const [perfilTipo,setPerfilTipo]=useState('faixa');
-  const d=useMemo(()=>analisarAvancado(avancado,incluirPilotos),[avancado,incluirPilotos]);
+  const dadosFiltrados=useMemo(()=>{
+    if (filtroModo==='todos' || !avancado) return avancado;
+    const pessoas=(avancado.sessoes||[]).filter(s=>{
+      const modo=s.modo_teste || (Number(s.individuais_sorteadas)===20 && Number(s.comparacoes_sorteadas)===20 ? 'completo' : 'reduzido');
+      return modo===filtroModo;
+    });
+    const ids=new Set(pessoas.map(s=>s.id));
+    return { ...avancado, sessoes:pessoas,
+      individuais:(avancado.individuais||[]).filter(r=>ids.has(r.participante_id)),
+      comparacoes:(avancado.comparacoes||[]).filter(r=>ids.has(r.participante_id)) };
+  },[avancado,filtroModo]);
+  const d=useMemo(()=>analisarAvancado(dadosFiltrados,incluirPilotos),[dadosFiltrados,incluirPilotos]);
   const comparacoesAnalise=useMemo(()=>analisarComparacoes(d.rc),[d.rc]);
   const sessoesComDuasPartes=d.pessoas.filter(p=>p.n_ind===20 && p.n_comp===20);
   const media40=sessoesComDuasPartes.length?sessoesComDuasPartes.reduce((ac,p)=>ac+100*(p.acertos+p.acertosPares)/40,0)/sessoesComDuasPartes.length:null;
+  const resumoModos=useMemo(()=>{
+    return ['completo','reduzido'].map(modo=>{
+      const participantes=d.pessoas.filter(p=>p.modalidade_teste===modo);
+      const media=(chave)=>{
+        const numeros=participantes.map(p=>p[chave]).filter(v=>Number.isFinite(v));
+        return numeros.length?numeros.reduce((a,b)=>a+b,0)/numeros.length:null;
+      };
+      return {modo,n:participantes.length,ind:media('pct_ind'),comp:media('pct_comp'),geral:media('pct_geral')};
+    });
+  },[d.pessoas]);
   const q=d.quad;
   const ia=q.vv+q.vf,humano=q.ff+q.fv,N=ia+humano;
   const sensibil=ia?100*q.vv/ia:null;
@@ -208,8 +230,9 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
       }}>▶ Modo apresentação</button>
     </div>
     {apresentando&&<ApresentacaoDados d={d} comparacoes={comparacoesAnalise} comparacoesDetalhes={comparacoesItens} media40={media40} amostra40={sessoesComDuasPartes.length} atual={atual} aoFechar={()=>setApresentando(false)}/>}
-    <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Resultado oficial usa somente sessões completas do protocolo de 40 decisões (20 + 20).</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
+    <div className="v5-cabecalho"><div><span className="v5-eyebrow">REAL OU IA? · PAINEL ESTATÍSTICO</span><h1>O que os dados estão mostrando?</h1><p className="mut">Atualizado {atual?.toLocaleString('pt-BR')||'—'} · Inclui sessões finalizadas de ambas as versões, respeitando a quantidade sorteada de cada pessoa.</p></div><div className="v5-contador"><strong>{v}<span>/{META}</span></strong><small>participantes válidos</small><div className="barra"><i style={{width:`${Math.min(100,100*v/META)}%`}}/></div></div></div>
     <nav className="v5-abas" aria-label="Seções das estatísticas">{TABS.map(([key,label])=><button type="button" key={key} aria-current={aba===key?'page':undefined} className={aba===key?'ativa':''} onClick={()=>setAba(key)}>{label}</button>)}</nav>
+    <div className="v23-filtro-modo"><label htmlFor="v23-modo-dashboard">Versão do teste</label><select id="v23-modo-dashboard" value={filtroModo} onChange={e=>setFiltroModo(e.target.value)}><option value="todos">Todas as versões (percentuais por participante)</option><option value="completo">Teste completo</option><option value="reduzido">Teste reduzido</option></select><span>As taxas usam as respostas reais de cada pessoa. O filtro também se aplica aos gráficos e à apresentação.</span></div>
     <div className="v5-filtro"><label><input type="checkbox" checked={incluirPilotos} onChange={e=>setIncluirPilotos(e.target.checked)}/> Incluir sessões piloto na análise</label><span>{incluirPilotos?'Exibindo também pilotos completos. Não usar esta opção no relatório final.':'Sessões piloto excluídas dos indicadores oficiais.'}</span></div>
     {erro&&<p role="alert" className="erro">{erro}</p>}
     <ResumoFonte d={d}/>
@@ -221,7 +244,8 @@ export default function Dashboard({dados,atual,avancado,atualizar,comparacoesIte
       <div className="v5-dados-diretos"><Numero destaque rotulo="Acerto nas 40 decisões (20 + 20)" valor={p100(media40)}
         legenda={`${sessoesComDuasPartes.length} participante(s) com as duas partes completas`}
         formula="(Acertos individuais + pares totalmente corretos) ÷ 40 × 100; depois calculamos a média dos participantes." /></div>
-      <Nota>O acerto nas 40 decisões é uma <b>nota descritiva mista</b>: perguntas individuais e pares possuem referências distintas para palpites aleatórios (50% e 25%). Para interpretar reconhecimento de IA, consulte as métricas de cada parte separadamente. Sessões de 30 decisões anteriores à atualização ficam fora da análise oficial, mas permanecem guardadas.</Nota>
+      <Nota>As notas individuais e de comparações usam os denominadores reais de cada sessão. A métrica de 40 decisões abaixo é exclusiva das sessões 20+20 e não representa o teste reduzido.</Nota><Nota>O acerto nas 40 decisões é uma <b>nota descritiva mista</b>: perguntas individuais e pares possuem referências distintas para palpites aleatórios (50% e 25%). Para interpretar reconhecimento de IA, consulte as métricas de cada parte separadamente. Sessões históricas podem ser incluídas conforme seus totais reais; confira o protocolo ao interpretar os resultados.</Nota>
+      <Painel titulo="Resultados por versão do teste" sub="Participantes agrupados pela versão selecionada no início. As médias usam percentuais individuais e denominadores reais; o teste reduzido não fica automaticamente em desvantagem por ter menos questões."><Tabela cabecalhos={['Versão','Participantes','Parte 1','Parte 2','Geral']} linhas={resumoModos.map(x=>[x.modo==='completo'?'Completo':'Reduzido',x.n,p100(x.ind),p100(x.comp),p100(x.geral)])}/></Painel>
       <div className="v5-grid"><Painel titulo="Como as pontuações se distribuem" sub="Histograma: quantidade de pessoas em cada faixa de acerto, sem tratar respostas como participantes."><Histograma pessoas={d.pessoas}/></Painel>
         <Painel titulo="Quanto de IA e humano apareceu?" sub="Proporção real dos conteúdos individuais exibidos aos participantes."><PieComposicao composicao={d.composicao}/></Painel>
         <Painel titulo="Acurácia por modalidade" sub="Cada ponto é a média por participante naquele formato."><LinhaVaria data={d.tipo}/></Painel>
