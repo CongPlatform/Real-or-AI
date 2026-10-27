@@ -68,7 +68,7 @@ export function analisarAvancado(d, incluirPilotos = false) {
       modalidade_teste: p.modo_teste || (a.length===20 && c.length===20 ? 'completo' : 'reduzido'),
       // A estimativa é expressa em decisões TOTAIS (40 para o protocolo atual),
       // nunca somente nas questões individuais da Parte 1.
-      estimativa_pct: p.estimativa == null || !(a.length+c.length) ? null : 100*p.estimativa/(a.length+c.length),
+      estimativa_pct: p.estimativa == null || Number(p.estimativa_base_decisoes) !== a.length+c.length || Number(p.estimativa)<0 || Number(p.estimativa)>a.length+c.length ? null : 100*Number(p.estimativa)/(a.length+c.length),
       tempo_med_s: mediana([...a,...c].map(r=>sec(r.tempo_ms))),
       duracao_teste_s: p.inicio && p.fim ? (new Date(p.fim) - new Date(p.inicio))/1000 : null };
   });

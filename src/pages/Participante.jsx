@@ -348,8 +348,10 @@ function Fim({ pid, total }) {
     const { data, error } = await supabase.rpc('finalizar_participante_v3', { p_participante: pid, p_estimativa: est });
     setBusy(false);
     if (error) return alert('Não foi possível enviar. Tente de novo.');
-    salvar({ resultado: data, concluido: true, estimativa: est });
-    setRes(data);
+    // Resultado, estimativa e denominadores vêm da mesma resposta do servidor.
+    const r = { ...data, estimativa: data?.estimativa ?? est };
+    salvar({ resultado: r, concluido: true, estimativa: r.estimativa, nDecisoes: Number(r.total || 0) + Number(r.comp?.total || 0) });
+    setRes(r);
   }
 
   if (!res) {
@@ -385,11 +387,14 @@ function Fim({ pid, total }) {
   const acertosGerais = acertosInd + acertosComp;
   const totalGeral = totalInd + totalComp;
   const pct = Math.round((100 * acertosGerais) / Math.max(totalGeral, 1));
-  const estimativaBaseSalva = Number(ler().nDecisoes) || totalGeral;
-  const estimativaOriginal = ler().estimativa;
-  const estimativaSalva = estimativaOriginal != null && estimativaOriginal !== '' && Number.isFinite(Number(estimativaOriginal))
+  // Estimativa só é exibida quando tem origem na mesma sessão e base validada.
+  // Resultados antigos sem metadados suficientes não recebem estimativas de outras sessões.
+  const estimativaBaseSalva = Number(res.base_decisoes ?? totalGeral);
+  const estimativaOriginal = res.estimativa;
+  const estimativaSalva = estimativaOriginal != null && estimativaOriginal !== '' && Number.isInteger(Number(estimativaOriginal))
     && estimativaBaseSalva === totalGeral && Number(estimativaOriginal) >= 0 && Number(estimativaOriginal) <= totalGeral
     ? Number(estimativaOriginal) : null;
+  const contagemDivergente = res.rodadas_sorteadas != null && Number(res.rodadas_sorteadas) !== totalGeral;
   async function imagemStories(compartilharArquivo = false) {
     setGerandoStory(true); setErroStory('');
     try {
@@ -415,7 +420,9 @@ function Fim({ pid, total }) {
   const url = window.location.origin + window.location.pathname;
   return <div className="tela centro largo"><div className="cartao">
     <h2 className="pergunta">Seu resultado</h2>
+    {contagemDivergente && <p className="erro" role="alert">Atenção: o banco registra {res.rodadas_sorteadas} decisões sorteadas, mas só {totalGeral} respostas foram contabilizadas. A pontuação precisa ser conferida antes do compartilhamento.</p>}
     <div className="resultado"><b>{pct}%</b><span>Total: {acertosGerais} acertos em {totalGeral} decisões{totalComp>0?' (Parte 1 + Parte 2)':''}</span></div>
+    {estimativaSalva === null && <p className="mut">Estimativa anterior indisponível: não foi possível confirmar que pertence a esta sessão.</p>}
     <div className={'v23-resultados-partes'+(totalComp===0?' v23-resultados-partes-uma':'' )}>
       <div className="v23-result-parte"><span>PARTE 1 · INDIVIDUAIS</span><strong>{totalInd ? Math.round(100*acertosInd/totalInd) : 0}%</strong><p>{acertosInd} acertos de {totalInd} questões</p></div>
       {totalComp > 0 && <div className="v23-result-parte"><span>PARTE 2 · COMPARAÇÕES</span><strong>{Math.round(100*acertosComp/Math.max(totalComp,1))}%</strong><p>{acertosComp} acertos de {totalComp} comparações</p></div>}
@@ -424,7 +431,7 @@ function Fim({ pid, total }) {
       <span>{TIPOS[t] || t}</span><div className="barra"><i style={{width:`${v.total ? 100*v.acertos/v.total : 0}%`}}/></div><em>{v.acertos}/{v.total}</em>
     </div>)}</div>
     {res.comp?.total > 0 && <p className="mut">Parte 2: você acertou as duas peças em {res.comp.acertos} de {res.comp.total} comparações.</p>}
-    <div className="v23-stories"><div><strong>Seu resultado merece um Story!</strong><p>Crie uma imagem vertical 1080 × 1920 com seus acertos nas duas partes e convide seus amigos a participar.</p></div><div className="v23-stories-acoes"><button type="button" className="cta" disabled={gerandoStory} onClick={()=>imagemStories(false)}>{gerandoStory?'Gerando imagem…':'↓ Baixar imagem para Stories'}</button><button type="button" className="v16-share-sec" disabled={gerandoStory} onClick={()=>imagemStories(true)}>Compartilhar imagem</button></div>{erroStory && <p role="status">{erroStory}</p>}</div>
+    <div className="v23-stories"><div><strong>Seu resultado merece um Story!</strong><p>Crie uma imagem vertical 1080 × 1920 com seus acertos nas duas partes e convide seus amigos a participar.</p></div><div className="v23-stories-acoes"><button type="button" className="cta" disabled={gerandoStory || contagemDivergente} onClick={()=>imagemStories(false)}>{gerandoStory?'Gerando imagem…':'↓ Baixar imagem para Stories'}</button><button type="button" className="v16-share-sec" disabled={gerandoStory || contagemDivergente} onClick={()=>imagemStories(true)}>Compartilhar imagem</button></div>{erroStory && <p role="status">{erroStory}</p>}</div>
     <div className="detalhe-acoes">
       <button type="button" className="cta" onClick={() => setDetalhado(true)}>Ver minhas respostas detalhadas</button>
       <button type="button" className="v16-share-sec" onClick={compartilhar}>Compartilhar novamente</button>
@@ -527,7 +534,7 @@ export default function Participante() {
           p_freq: f.freq, p_usos: f.usos, p_confianca: f.conf,
         });
         if (error) throw error;
-        salvar({ pid: data, concluido: false, resultado: null });
+        salvar({ pid: data, concluido: false, resultado: null, estimativa: null, nDecisoes: null, nIndividuais: null });
         return data;
       }
       const tinhaSessaoLocal = !!ler().pid;
@@ -543,7 +550,7 @@ export default function Participante() {
         resposta = await supabase.rpc('obter_teste_v3', { p_participante: participante });
       }
       if (resposta.error) throw resposta.error;
-      salvar({ pid: participante, concluido: false, resultado: null });
+      salvar({ pid: participante, concluido: false, resultado: null, estimativa: null, nDecisoes: null, nIndividuais: null });
       setPid(participante);
       instalarRoteiro(await adicionarGanhosDeAudio(resposta.data), true);
     } catch (e) {
