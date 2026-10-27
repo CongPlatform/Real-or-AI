@@ -283,6 +283,7 @@ function ResultadoDetalhado({ pid, onVoltar }) {
 
 function Fim({ pid, total }) {
   const [res, setRes] = useState(ler().resultado || null);
+  const [erroFinalizacao, setErroFinalizacao] = useState('');
   const [est, setEst] = useState(Math.round(total / 2));
   const [busy, setBusy] = useState(false);
   const [detalhado, setDetalhado] = useState(false);
@@ -344,10 +345,18 @@ function Fim({ pid, total }) {
   }
 
   async function ver() {
-    setBusy(true);
-    const { data, error } = await supabase.rpc('finalizar_participante_v3', { p_participante: pid, p_estimativa: est });
+    setBusy(true); setErroFinalizacao('');
+    let data, error;
+    try {
+      const resposta = await supabase.rpc('finalizar_participante_v3', { p_participante: pid, p_estimativa: est });
+      data = resposta.data; error = resposta.error;
+    } catch (e) { error = e; }
     setBusy(false);
-    if (error) return alert('Não foi possível enviar. Tente de novo.');
+    if (error || !data) {
+      console.error('Falha ao concluir participação:', error);
+      setErroFinalizacao(`Não foi possível concluir. ${error?.message || 'O servidor não retornou um resultado.'} Suas respostas anteriores continuam registradas. Tente novamente; se persistir, informe esse texto à equipe da pesquisa.`);
+      return;
+    }
     // Resultado, estimativa e denominadores vêm da mesma resposta do servidor.
     const r = { ...data, estimativa: data?.estimativa ?? est };
     salvar({ resultado: r, concluido: true, estimativa: r.estimativa, nDecisoes: Number(r.total || 0) + Number(r.comp?.total || 0) });
@@ -360,6 +369,7 @@ function Fim({ pid, total }) {
       <p className="mut">Considerando todas as {total} decisões (classificações individuais e comparações), quantas você acha que acertou? Cada comparação conta como um acerto somente quando as duas peças estão corretas.</p>
       <div className="estima"><b>{est}</b><span>de {total}</span></div>
       <input type="range" min="0" max={total} value={est} onChange={e=>setEst(+e.target.value)}/>
+      {erroFinalizacao && <p className="erro" role="alert" style={{whiteSpace:"pre-wrap"}}>{erroFinalizacao}</p>}
       <button className="cta" disabled={busy} onClick={ver}>{busy?'Enviando…':'Concluir minha participação'}</button>
     </div></div>;
   }

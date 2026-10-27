@@ -29,6 +29,8 @@ export function nomeArquivoStories(info={}){
   return `real-ou-ia-${parte}-stories.png`;
 }
 
+const QR_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASgAAAEoCAIAAABkZftOAAAFfUlEQVR4nO3dQW5jNxBAwTjI/a88WWTNARiQ85pS1dqQZFsPXDSa/+fXr19/AX/W3/UHgG8kPAgIDwLCg4DwICA8CAgPAsKDgPAgIDwICA8CwoOA8CAgPAgIDwLCg4DwICA8CAgPAsKDgPAgIDwICA8CwoOA8CAgPAgIDwLCg4DwICA8CAgPAv/cfoOfn5/bb3HE6jmBu5//1Ovs2n3fUz+/6/XvwylOPAgIDwLCg4DwICA8CAgPAsKDwPU53srtOcnK7blcNae6Pa879Xc79fOnVP8vJx4EhAcB4UFAeBAQHgSEBwHhQSCb462cmqtUc6Hb7/tt+3Kvfx9WnHgQEB4EhAcB4UFAeBAQHgSEB4Fxc7xpbu+traxe/9Q8avd1bs8Pv40TDwLCg4DwICA8CAgPAsKDgPAgYI73h1TPzVu5fU8mv+fEg4DwICA8CAgPAsKDgPAgIDwIjJvjfdu8qLqHc+XU8/RO+dTvgxMPAsKDgPAgIDwICA8CwoOA8CCQzfGmPYetcurezt1516nXP/V5vu374MSDgPAgIDwICA8CwoOA8CAgPAj8fOq+0ym351S352m7Tr2+79XvOfEgIDwICA8CwoOA8CAgPAgIDwLX9/Fu38dYzbtWXrl/8vZ9m9V+3e356ilOPAgIDwLCg4DwICA8CAgPAsKDwLjn492eq7x+n2S117f6+Wovcff1p3HiQUB4EBAeBIQHAeFBQHgQEB4Evu75eNPmSNPun7w9l7s9F91VfQ+deBAQHgSEBwHhQUB4EBAeBIQHgez5eNPuXazmb6/sAa5M28eb9v9dceJBQHgQEB4EhAcB4UFAeBAQHgSuz/Fuz4umzYWq5/KdcvvzT5sbV5/HiQcB4UFAeBAQHgSEBwHhQUB4EMj28Xa9fu/i6/dJ3t4/nMY+Hnwg4UFAeBAQHgSEBwHhQUB4EMiej7dyas5zak41bX9s16nn1J1SzQOn7Uk68SAgPAgIDwLCg4DwICA8CAgPAs/fq7n7vq881+71eztf+X+t2MeDDyQ8CAgPAsKDgPAgIDwICA8C4+7VfGU+dmpOtauaQ+6+zsq0/UbPx4MvIjwICA8CwoOA8CAgPAgIDwLX79Ws9sRe2Wfb/Ty3f69pe3G7pu0BrjjxICA8CAgPAsKDgPAgIDwICA8C1+d4t+cht+dgu6bNzSq39xtXXpnfOvEgIDwICA8CwoOA8CAgPAgIDwLX53i7Tt3T+Mpz/0697+7fYdo9n6dMm9etOPEgIDwICA8CwoOA8CAgPAgIDwLXn493ai437d7LlWn7YNP+nre5VxNYEh4EhAcB4UFAeBAQHgSEB4Fn7tWs9r6q/bdpe267qnsyX+HEg4DwICA8CAgPAsKDgPAgIDwIXJ/jvbL3Vc2Fqnsvqz29U3O51+eiTjwICA8CwoOA8CAgPAgIDwLCg0D2fLxp+3Uru/Ou28/rq/bcpj1Pb9rr7HLiQUB4EBAeBIQHAeFBQHgQEB4EsjneyrR50e17HU/9vtPun5y21zdtf8+JBwHhQUB4EBAeBIQHAeFBQHgQGDfHm+b2fY+771u9/qmfn8Y+HnwR4UFAeBAQHgSEBwHhQUB4EDDH+59u389Z7enZY/yPfTz4QMKDgPAgIDwICA8CwoOA8CAwbo73qXtc1Z7b7pyweu7cK3uMpzjxICA8CAgPAsKDgPAgIDwICA8C2Rxv2lxlZdrnfOUey1N7gNPmjac48SAgPAgIDwLCg4DwICA8CAgPAj/T5j/wDZx4EBAeBIQHAeFBQHgQEB4EhAcB4UFAeBAQHgSEBwHhQUB4EBAeBIQHAeFBQHgQEB4EhAcB4UFAeBAQHgSEBwHhQUB4EBAeBIQHAeFBQHgQEB4EhAeBfwHL2jBigMD6kAAAAABJRU5ErkJggg==";
+
 function svgResultado(info={}) {
   const n = v => Math.max(0, Number(v) || 0);
   const ti=n(info.totalInd), tc=n(info.totalComp);
@@ -70,8 +72,8 @@ function svgResultado(info={}) {
       <text x="946" y="${y+34}" text-anchor="end" class="bar-value">${a}/${t}</text>`;
   }).join('');
   const dadosFim=barStart+campos.length*barGap+10;
-  const mensagemY=Math.max(1120,Math.min(1540,dadosFim+60));
-  const estimativaTexto=estimativa === null ? '' : `<text x="540" y="${mensagemY+118}" text-anchor="middle" class="subtle">Eu achei que acertaria ${estimativa} de ${total}</text>`;
+  const mensagemY=Math.max(1100,Math.min(1480,dadosFim+20));
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
     <defs>
       <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse">
@@ -100,18 +102,20 @@ function svgResultado(info={}) {
     <text x="540" y="317" text-anchor="middle" class="big">REAL <tspan fill="#7041F7">OU</tspan> <tspan fill="#A6E924">IA?</tspan></text>
     <text x="540" y="390" text-anchor="middle" class="sub">Meu resultado</text>
     <rect x="92" y="448" width="896" height="280" rx="33" fill="#49228E" stroke="#181329" stroke-width="7" filter="url(#shadow)"/>
-    <text x="132" y="525" font-size="39" font-weight="800" fill="#fff">Pontuação geral</text>
-    <text x="126" y="669" font-size="142" font-weight="900" fill="#CBFF38">${porcento(certos,total)}%</text>
+    <text x="132" y="525" font-size="39" font-weight="800" style="fill:#fff">Pontuação geral</text>
+    <text x="126" y="669" font-size="142" font-weight="900" style="fill:#CBFF38">${porcento(certos,total)}%</text>
     <rect x="560" y="575" width="364" height="45" rx="22" fill="#fff" stroke="#181329" stroke-width="5"/>
     <rect x="564" y="579" width="${Math.round(356*porcento(certos,total)/100)}" height="37" rx="18" fill="#CBFF38"/>
-    <text x="560" y="673" font-size="28" font-weight="700" fill="#fff">${certos} acertos em ${total} decisões</text>
+    <text x="560" y="673" font-size="28" font-weight="700" style="fill:#fff">${certos} acertos em ${total} decisões</text>
     ${cards}
     ${bars}
     <rect x="92" y="${mensagemY}" width="896" height="188" rx="28" fill="#EEE5FF" stroke="#181329" stroke-width="5"/>
-    <text x="540" y="${mensagemY+66}" text-anchor="middle" font-size="38" font-weight="900">VOCÊ CONSEGUE DIFERENCIAR?</text>
-    <text x="540" y="${mensagemY+111}" text-anchor="middle" font-size="29" font-weight="700">Faça o desafio e descubra!</text>
-    ${estimativaTexto}
-    <text x="540" y="1702" text-anchor="middle" font-size="43" font-weight="900" fill="#6440EB">real-ou-ia.cong.com.br</text>
+    <text x="330" y="${mensagemY+62}" text-anchor="middle" font-size="36" font-weight="900">VOCÊ CONSEGUE</text>
+    <text x="330" y="${mensagemY+104}" text-anchor="middle" font-size="36" font-weight="900">DIFERENCIAR?</text>
+    <text x="330" y="${mensagemY+147}" text-anchor="middle" font-size="25" font-weight="700">Escaneie e participe!</text>
+    <rect x="690" y="${mensagemY+9}" width="170" height="170" rx="13" fill="#fff" stroke="#181329" stroke-width="3"/>
+    <image x="700" y="${mensagemY+19}" width="150" height="150" href="${QR_DATA}"/>
+    <text x="540" y="1740" text-anchor="middle" font-size="42" font-weight="900" style="fill:#6440EB">real-ou-ia.cong.com.br</text>
   </svg>`;
 }
 
