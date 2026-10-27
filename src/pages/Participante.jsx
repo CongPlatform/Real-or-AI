@@ -404,6 +404,7 @@ function Fim({ pid, total }) {
         acertosComp, totalComp,
         estimativa: estimativaSalva,
         estimativaBase: estimativaBaseSalva,
+        porTipo: res.por_tipo || {},
         url: 'real-ou-ia.cong.com.br',
       };
       const { blob } = await gerarStoryResultado(valores);

@@ -29,102 +29,89 @@ export function nomeArquivoStories(info={}){
   return `real-ou-ia-${parte}-stories.png`;
 }
 
-function svgResultado(info={}){
-  const totalGeral = Number(info.totalGeral) || 0;
-  const acertosGerais = Number(info.acertosGerais) || 0;
-  const totalInd = Number(info.totalInd) || 0;
-  const acertosInd = Number(info.acertosInd) || 0;
-  const totalComp = Number(info.totalComp) || 0;
-  const acertosComp = Number(info.acertosComp) || 0;
-  const estimativaBruta = info.estimativa == null || info.estimativa === '' ? null : Number(info.estimativa);
-  const estimativaBase = Number.isFinite(Number(info.estimativaBase)) ? Number(info.estimativaBase) : totalGeral;
-  const estimativa = estimativaBruta != null && Number.isFinite(estimativaBruta) && estimativaBase === totalGeral && estimativaBruta >= 0 && estimativaBruta <= totalGeral ? estimativaBruta : null;
-  const estimativaPct = estimativa != null && estimativaBase ? Math.round((100*estimativa)/estimativaBase) : null;
-  const geralPct = pct(acertosGerais,totalGeral);
-  const indPct = pct(acertosInd,totalInd);
-  const compPct = pct(acertosComp,totalComp);
-  const modo = modoLabel(totalGeral,totalInd,totalComp);
-  const subtitulo = totalComp > 0
-    ? 'Pontuação separada da Parte 1 e da Parte 2'
-    : 'Pontuação da etapa individual';
-  const url = esc(info.url || 'real-ou-ia.cong.com.br');
-  const estimativaTxt = estimativa != null ? `${estimativa}/${estimativaBase} (${estimativaPct}%)` : '—';
-  const comparacaoLegenda = totalComp > 0
-    ? 'comparações totalmente corretas'
-    : 'comparações';
-  const parte1X = 110;
-  const parte1Y = 780;
-  const parte1W = totalComp > 0 ? 400 : 860;
-  const parte2Card = totalComp > 0 ? `
+function svgResultado(info={}) {
+  const n = v => Math.max(0, Number(v) || 0);
+  const ti=n(info.totalInd), tc=n(info.totalComp);
+  const ai=Math.min(ti,n(info.acertosInd)), ac=Math.min(tc,n(info.acertosComp));
+  const total=ti+tc, certos=ai+ac;
+  const porcento=(a,t)=>t?Math.round(100*a/t):0;
+  const modalidade = info.modo === 'completo' ? 'DESAFIO COMPLETO' :
+    info.modo === 'reduzido' ? 'DESAFIO RÁPIDO' : 'MEU DESAFIO';
+  const estimativa = info.estimativa === null || info.estimativa === undefined ||
+    info.estimativa === '' || !Number.isFinite(Number(info.estimativa)) ||
+    Number(info.estimativa) > total || Number(info.estimativa) < 0
+      ? null : Math.round(Number(info.estimativa));
+  const media = info.porTipo || {};
+  const nomes = {audio:'Áudio', texto:'Texto',video:'Vídeo', imagem:'Imagem'};
+  const campos=Object.entries(nomes).filter(([k])=>Number(media[k]?.total)>0);
+  const p1=tc>0? {x:92,w:420}:{x:92,w:896};
+  const cards = `
     <g filter="url(#shadow)">
-      <rect x="570" y="780" width="400" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
-      <text x="608" y="850" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Parte 2</text>
-      <text x="608" y="895" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">${esc(comparacaoLegenda)}</text>
-      <text x="608" y="988" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="110" fill="#FFFFFF">${compPct}%</text>
-      <text x="608" y="1030" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#C6F432">${acertosComp}/${totalComp}</text>
-    </g>` : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>
-  <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+      <rect x="${p1.x}" y="770" width="${p1.w}" height="242" rx="28" fill="#fff" stroke="#181329" stroke-width="6"/>
+      <text x="126" y="835" class="card-title">PARTE 1 · INDIVIDUAIS</text>
+      <text x="126" y="952" class="card-num">${porcento(ai,ti)}%</text>
+      <text x="126" y="990" class="card-desc">${ai} de ${ti} acertos</text>
+    </g>
+    ${tc ? `<g filter="url(#shadow)">
+      <rect x="556" y="770" width="432" height="242" rx="28" fill="#fff" stroke="#181329" stroke-width="6"/>
+      <text x="590" y="835" class="card-title">PARTE 2 · COMPARAÇÕES</text>
+      <text x="590" y="952" class="card-num">${porcento(ac,tc)}%</text>
+      <text x="590" y="990" class="card-desc">${ac} de ${tc} acertos</text>
+    </g>` : ''}`;
+  const barStart=1095, barGap=99;
+  const bars=campos.map(([chave,rotulo],i)=>{
+    const a=Math.min(n(media[chave].acertos),n(media[chave].total));
+    const t=n(media[chave].total);
+    const progress=400*a/t;
+    const y=barStart+i*barGap;
+    return `<text x="118" y="${y+33}" class="bar-label">${rotulo}</text>
+      <rect x="360" y="${y}" width="430" height="47" rx="23" fill="#fff" stroke="#181329" stroke-width="5"/>
+      <rect x="364" y="${y+4}" width="${Math.max(0,Math.min(422,422*a/t))}" height="39" rx="19" fill="#CBFF38"/>
+      <text x="946" y="${y+34}" text-anchor="end" class="bar-value">${a}/${t}</text>`;
+  }).join('');
+  const dadosFim=barStart+campos.length*barGap+10;
+  const mensagemY=Math.max(1120,Math.min(1540,dadosFim+60));
+  const estimativaTexto=estimativa === null ? '' : `<text x="540" y="${mensagemY+118}" text-anchor="middle" class="subtle">Eu achei que acertaria ${estimativa} de ${total}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#14082D"/>
-        <stop offset="52%" stop-color="#2A0F5E"/>
-        <stop offset="100%" stop-color="#120820"/>
-      </linearGradient>
-      <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#26174A"/>
-        <stop offset="100%" stop-color="#181329"/>
-      </linearGradient>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#05040a" flood-opacity="0.38"/>
+      <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse">
+        <circle cx="4" cy="4" r="2.2" fill="#9B8AC9" opacity=".38"/>
+      </pattern>
+      <filter id="shadow" x="-10%" y="-10%" width="130%" height="140%">
+        <feDropShadow dx="7" dy="9" stdDeviation="0" flood-color="#181329"/>
       </filter>
+      <style>
+        text{font-family:Arial,Helvetica,sans-serif;fill:#181329}
+        .eyebrow{font-size:31px;font-weight:800;letter-spacing:3px;fill:#6745ED}
+        .big{font-size:99px;font-weight:900;letter-spacing:-3px}
+        .sub{font-size:43px;font-weight:800}
+        .card-title{font-size:25px;font-weight:900}
+        .card-num{font-size:108px;font-weight:900;fill:#6D43F5}
+        .card-desc{font-size:26px;font-weight:700}
+        .bar-label,.bar-value{font-size:36px;font-weight:800}
+        .subtle{font-size:28px;font-weight:700;fill:#695E7B}
+      </style>
     </defs>
-    <rect width="1080" height="1920" fill="url(#bg)"/>
-    <circle cx="870" cy="190" r="220" fill="#C6F432" opacity="0.12"/>
-    <circle cx="180" cy="1560" r="180" fill="#7E54FF" opacity="0.18"/>
-    <circle cx="920" cy="1620" r="150" fill="#C6F432" opacity="0.08"/>
-    <g opacity="0.16" stroke="#ffffff" fill="none">
-      <path d="M58 118 L188 118"/><path d="M58 158 L158 158"/><path d="M864 114 L1016 114"/><path d="M862 154 L968 154"/>
-      <rect x="62" y="182" width="84" height="84" rx="18"/><rect x="924" y="187" width="86" height="86" rx="18"/>
-      <circle cx="960" cy="342" r="24"/><circle cx="118" cy="1414" r="20"/>
-    </g>
-    <g filter="url(#shadow)">
-      <rect x="70" y="96" width="940" height="1728" rx="42" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
-    </g>
-    <text x="110" y="190" font-family="Arial, Helvetica, sans-serif" font-size="38" fill="#C6F432" font-weight="700">REAL OU IA?</text>
-    <text x="110" y="240" font-family="Arial, Helvetica, sans-serif" font-size="66" fill="#FFFFFF" font-weight="800">Meu resultado</text>
-    <text x="110" y="290" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#D8D5E8">${esc(modo)} · ${esc(subtitulo)}</text>
-
-    <g filter="url(#shadow)">
-      <rect x="110" y="360" width="860" height="360" rx="42" fill="#C6F432"/>
-      <text x="540" y="452" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="42" fill="#23113D" font-weight="700">Pontuação geral</text>
-      <text x="540" y="595" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="170" fill="#1B1335">${geralPct}%</text>
-      <text x="540" y="665" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#271B4A" font-weight="700">${acertosGerais} acertos em ${totalGeral} decisões</text>
-    </g>
-
-    <g filter="url(#shadow)">
-      <rect x="${parte1X}" y="${parte1Y}" width="${parte1W}" height="270" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
-      <text x="148" y="850" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Parte 1</text>
-      <text x="148" y="895" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#D8D5E8">Classificações individuais</text>
-      <text x="148" y="988" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="110" fill="#FFFFFF">${indPct}%</text>
-      <text x="148" y="1030" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#C6F432">${acertosInd}/${totalInd}</text>
-    </g>
-    ${parte2Card}
-
-    <g filter="url(#shadow)">
-      <rect x="110" y="1110" width="860" height="200" rx="32" fill="url(#card)" stroke="rgba(255,255,255,0.08)"/>
-      <text x="150" y="1182" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#FFFFFF" font-weight="700">Quanto eu achei que acertaria</text>
-      <text x="150" y="1232" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#D8D5E8">Estimativa antes de ver o resultado</text>
-      <text x="150" y="1282" font-family="Arial, Helvetica, sans-serif" font-size="48" fill="#C6F432" font-weight="700">${esc(estimativaTxt)}</text>
-    </g>
-
-    <g filter="url(#shadow)">
-      <rect x="110" y="1370" width="860" height="250" rx="32" fill="#FFFFFF" opacity="0.96"/>
-      <text x="150" y="1450" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#20143C" font-weight="700">Quer tentar também?</text>
-      <text x="150" y="1510" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#3B2A64">Descubra se você consegue diferenciar conteúdos</text>
-      <text x="150" y="1550" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#3B2A64">reais daqueles produzidos com inteligência artificial.</text>
-      <text x="150" y="1605" font-family="Arial, Helvetica, sans-serif" font-size="36" fill="#6A43FF" font-weight="800">${url}</text>
-    </g>
+    <rect width="1080" height="1920" fill="#F3EEFF"/>
+    <rect width="1080" height="1920" fill="url(#dots)"/>
+    <rect x="53" y="76" width="974" height="1725" rx="45" fill="#fff" stroke="#181329" stroke-width="7" filter="url(#shadow)"/>
+    <rect x="325" y="126" width="430" height="64" rx="32" fill="#E9DEFF" stroke="#181329" stroke-width="5"/>
+    <text x="540" y="172" text-anchor="middle" class="eyebrow" font-size="26">${esc(modalidade)}</text>
+    <text x="540" y="317" text-anchor="middle" class="big">REAL <tspan fill="#7041F7">OU</tspan> <tspan fill="#A6E924">IA?</tspan></text>
+    <text x="540" y="390" text-anchor="middle" class="sub">Meu resultado</text>
+    <rect x="92" y="448" width="896" height="280" rx="33" fill="#49228E" stroke="#181329" stroke-width="7" filter="url(#shadow)"/>
+    <text x="132" y="525" font-size="39" font-weight="800" fill="#fff">Pontuação geral</text>
+    <text x="126" y="669" font-size="142" font-weight="900" fill="#CBFF38">${porcento(certos,total)}%</text>
+    <rect x="560" y="575" width="364" height="45" rx="22" fill="#fff" stroke="#181329" stroke-width="5"/>
+    <rect x="564" y="579" width="${Math.round(356*porcento(certos,total)/100)}" height="37" rx="18" fill="#CBFF38"/>
+    <text x="560" y="673" font-size="28" font-weight="700" fill="#fff">${certos} acertos em ${total} decisões</text>
+    ${cards}
+    ${bars}
+    <rect x="92" y="${mensagemY}" width="896" height="188" rx="28" fill="#EEE5FF" stroke="#181329" stroke-width="5"/>
+    <text x="540" y="${mensagemY+66}" text-anchor="middle" font-size="38" font-weight="900">VOCÊ CONSEGUE DIFERENCIAR?</text>
+    <text x="540" y="${mensagemY+111}" text-anchor="middle" font-size="29" font-weight="700">Faça o desafio e descubra!</text>
+    ${estimativaTexto}
+    <text x="540" y="1702" text-anchor="middle" font-size="43" font-weight="900" fill="#6440EB">real-ou-ia.cong.com.br</text>
   </svg>`;
 }
 
