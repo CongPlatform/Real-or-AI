@@ -1,9 +1,21 @@
-import ConfiguracaoTeste from '../components/ConfiguracaoTeste';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Dashboard from './Dashboard';
+import { analisar } from '../lib/stats';
+import { Resumo, Analises } from './Dashboard';
+import Apresentacao from './Apresentacao';
+import Dados from './Dados';
+import Revisao from '../components/Revisao';
 import Conteudos from '../components/Conteudos';
-import LimpezaPesquisa from '../components/LimpezaPesquisa';
+import '../admin.css';
+
+const ABAS = [
+  { id: 'resumo', nome: 'Resumo' },
+  { id: 'graficos', nome: 'Gráficos' },
+  { id: 'apresentacao', nome: 'Apresentação' },
+  { id: 'revisao', nome: 'Revisar conteúdos' },
+  { id: 'cadastro', nome: 'Cadastrar' },
+  { id: 'dados', nome: 'Dados' },
+];
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -15,38 +27,30 @@ function Login() {
     if (error) setErro('E-mail ou senha incorretos.');
   }
   return (
-    <div className="tela centro"><form className="cartao form-login" onSubmit={entrar}>
-      <h1>Área do admin</h1>
-      <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
-      {erro && <p className="erro">{erro}</p>}
-      <button className="cta">Entrar</button>
-    </form></div>
+    <div className="tela centro">
+      <form className="cartao form-login" onSubmit={entrar}>
+        <h1>Área do admin</h1>
+        <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+        {erro && <p className="erro">{erro}</p>}
+        <button className="cta">Entrar</button>
+      </form>
+    </div>
   );
 }
 
 function Painel({ sair }) {
   const [d, setD] = useState(null);
-  const [avancado, setAvancado] = useState(null);
-  const [comparacoesItens,setComparacoesItens] = useState([]);
-  const [comparacoesDisponiveis,setComparacoesDisponiveis] = useState(false);
   const [erro, setErro] = useState('');
-  const [aba, setAba] = useState('stats');
+  const [aba, setAba] = useState(() => sessionStorage.getItem('realia_aba') || 'resumo');
+  const [parciais, setParciais] = useState(false);
   const [atual, setAtual] = useState(null);
   const tm = useRef();
 
   const carregar = useCallback(async () => {
-    const [principal, adicional, itensComparados] = await Promise.all([
-      supabase.rpc('admin_dados'), supabase.rpc('admin_analise_v4'),
-      supabase.rpc('admin_respostas_itens_comp_v6'),
-    ]);
-    if (principal.error) return setErro(principal.error.message);
-    setD(principal.data);
-    setAvancado(adicional.error ? null : adicional.data);
-    setComparacoesItens(!itensComparados.error && Array.isArray(itensComparados.data) ? itensComparados.data : []);
-    setComparacoesDisponiveis(!itensComparados.error);
-    setErro(adicional.error ? 'Instale supabase/PATCH_ESTATISTICAS_V4.sql e atualize. ' + adicional.error.message : '');
-    setAtual(new Date());
+    const { data, error } = await supabase.rpc('admin_dados');
+    if (error) return setErro(error.message);
+    setErro(''); setD(data); setAtual(new Date());
   }, []);
 
   useEffect(() => {
@@ -56,27 +60,31 @@ function Painel({ sair }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas' }, gatilho)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas_comp' }, gatilho)
       .subscribe();
-    const iv = setInterval(carregar, 60000);
+    const iv = setInterval(carregar, 20000);
     return () => { supabase.removeChannel(ch); clearInterval(iv); };
   }, [carregar]);
 
+  useEffect(() => { try { sessionStorage.setItem('realia_aba', aba); } catch { /* ignora */ } }, [aba]);
+  const s = useMemo(() => (d ? analisar(d, { parciais }) : null), [d, parciais]);
+
   return (
-    <div className="admin">
-      <header className="admin-topo">
-        <h1>Real ou IA? <small>admin</small></h1>
-        <nav>
-          <button className={aba === 'stats' ? 'on' : ''} onClick={() => setAba('stats')}>Estatísticas</button>
-          <button className={aba === 'config' ? 'on' : ''} onClick={() => setAba('config')}>Configurar teste</button>
-          <button className={aba === 'cont' ? 'on' : ''} onClick={() => setAba('cont')}>Conteúdos</button>
-          <button className={aba === 'limpeza' ? 'on' : ''} onClick={() => setAba('limpeza')}>Limpar dados</button>
-          <button onClick={sair}>Sair</button>
-        </nav>
-      </header>
-      {erro && <p className="erro">{erro}</p>}
-      {!d ? <p className="mut">Carregando…</p> : aba === 'stats'
-        ? avancado ? <Dashboard dados={d} atual={atual} avancado={avancado} atualizar={carregar} comparacoesItens={comparacoesItens} comparacoesDisponiveis={comparacoesDisponiveis} />
-          : <div className="painel"><h2>Atualização estatística pendente</h2><p>Execute primeiro o arquivo <code>supabase/PATCH_ESTATISTICAS_V4.sql</code> no SQL Editor.</p></div>
-        : aba === 'config' ? <ConfiguracaoTeste /> : aba === 'cont' ? <Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} /> : <LimpezaPesquisa atualizar={carregar} />}
+    <div className="shell">
+      <nav className="lado">
+        <h1>Real ou IA?<small>admin</small></h1>
+        {ABAS.map((a) => <button key={a.id} className={'item' + (aba === a.id ? ' on' : '')} onClick={() => setAba(a.id)}>{a.nome}</button>)}
+        <button className="item rodape" onClick={sair}>Sair</button>
+      </nav>
+      <main className="principal">
+        {erro && <p className="erro">{erro}</p>}
+        {!d ? <p className="mut">Carregando…</p> : (<>
+          {aba === 'resumo' && <Resumo s={s} atual={atual} parciais={parciais} setParciais={setParciais} />}
+          {aba === 'graficos' && <Analises s={s} />}
+          {aba === 'apresentacao' && <Apresentacao s={s} />}
+          {aba === 'revisao' && <Revisao d={d} recarregar={carregar} />}
+          {aba === 'cadastro' && (<div className="dash"><div className="secao-topo"><h2>Cadastrar conteúdos</h2></div><Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} /></div>)}
+          {aba === 'dados' && <Dados d={d} s={s} recarregar={carregar} />}
+        </>)}
+      </main>
     </div>
   );
 }
@@ -86,7 +94,7 @@ export default function Admin() {
   const [ok, setOk] = useState(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSess(data.session));
-    const { data: l } = supabase.auth.onAuthStateChange((_e, s) => setSess(s));
+    const { data: l } = supabase.auth.onAuthStateChange((_e, x) => setSess(x));
     return () => l.subscription.unsubscribe();
   }, []);
   useEffect(() => {

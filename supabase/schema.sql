@@ -77,6 +77,21 @@ create table if not exists public.respostas_comp (
 );
 create index if not exists respostas_comp_participante_idx on public.respostas_comp(participante_id);
 
+-- quais itens a pessoa marcou como IA (permite recalcular quando o gabarito for corrigido)
+alter table public.respostas_comp add column if not exists marcados uuid[];
+
+-- histórico de correções de gabarito (nada é apagado; dá para desfazer mudando de novo)
+create table if not exists public.correcoes_gabarito (
+  id uuid primary key default gen_random_uuid(),
+  conteudo_id uuid references public.conteudos(id) on delete set null,
+  de_eh_ia boolean,
+  para_eh_ia boolean,
+  respostas_afetadas int not null default 0,
+  respostas_alteradas int not null default 0,
+  por uuid,
+  em timestamptz not null default now()
+);
+
 -- ---------- ADMIN ----------
 create or replace function public.sou_admin() returns boolean
 language sql stable security definer set search_path = public as $$
@@ -91,6 +106,7 @@ alter table public.gabarito enable row level security;
 alter table public.participantes enable row level security;
 alter table public.respostas enable row level security;
 alter table public.respostas_comp enable row level security;
+alter table public.correcoes_gabarito enable row level security;
 
 drop policy if exists "admins le o proprio" on public.admins;
 create policy "admins le o proprio" on public.admins for select using (user_id = auth.uid());
@@ -117,6 +133,8 @@ drop policy if exists "admin le respostas" on public.respostas;
 create policy "admin le respostas" on public.respostas for select using (public.sou_admin());
 drop policy if exists "admin le respostas_comp" on public.respostas_comp;
 create policy "admin le respostas_comp" on public.respostas_comp for select using (public.sou_admin());
+drop policy if exists "admin le correcoes" on public.correcoes_gabarito;
+create policy "admin le correcoes" on public.correcoes_gabarito for select using (public.sou_admin());
 
 -- participante (anon) NÃO enxerga o nome interno do conteúdo (poderia entregar a resposta)
 revoke select on public.conteudos from anon;
@@ -155,7 +173,7 @@ end $$;
 create or replace function public.enviar_comparacao(
   p_participante uuid, p_comparacao uuid, p_marcados uuid[], p_tempo_ms int
 ) returns void language plpgsql security definer set search_path = public as $$
-declare v_n int; v_ok int; v_ia int; v_marc int;
+declare v_n int; v_ok int; v_ia int; v_marc int; v_ids uuid[];
 begin
   if not exists (select 1 from public.participantes where id = p_participante and not finalizado) then
     raise exception 'participante invalido';
@@ -163,13 +181,14 @@ begin
   select count(*),
          count(*) filter (where (c.id = any(coalesce(p_marcados, '{}'::uuid[]))) = g.eh_ia),
          count(*) filter (where g.eh_ia),
-         count(*) filter (where c.id = any(coalesce(p_marcados, '{}'::uuid[])))
-    into v_n, v_ok, v_ia, v_marc
+         count(*) filter (where c.id = any(coalesce(p_marcados, '{}'::uuid[]))),
+         coalesce(array_agg(c.id) filter (where c.id = any(coalesce(p_marcados, '{}'::uuid[]))), '{}'::uuid[])
+    into v_n, v_ok, v_ia, v_marc, v_ids
     from public.conteudos c join public.gabarito g on g.conteudo_id = c.id
    where c.comparacao_id = p_comparacao;
   if v_n = 0 then raise exception 'comparacao invalida'; end if;
-  insert into public.respostas_comp (participante_id, comparacao_id, n_itens, n_reais_ia, n_marcados_ia, acertos_itens, acertou, tempo_ms)
-  values (p_participante, p_comparacao, v_n, v_ia, v_marc, v_ok, v_ok = v_n, least(greatest(coalesce(p_tempo_ms, 0), 0), 600000))
+  insert into public.respostas_comp (participante_id, comparacao_id, n_itens, n_reais_ia, n_marcados_ia, acertos_itens, acertou, tempo_ms, marcados)
+  values (p_participante, p_comparacao, v_n, v_ia, v_marc, v_ok, v_ok = v_n, least(greatest(coalesce(p_tempo_ms, 0), 0), 600000), v_ids)
   on conflict (participante_id, comparacao_id) do nothing;
 end $$;
 
@@ -198,6 +217,78 @@ begin
 end $$;
 
 -- ---------- FUNÇÕES DO ADMIN ----------
+-- recalcula as rodadas de comparação de uma comparação (só as que guardaram os itens marcados)
+create or replace function public.recalcular_comparacao(p_comp uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare v int;
+begin
+  with novo as (
+    select rc.id, count(*) n, count(*) filter (where g.eh_ia) n_ia,
+           count(*) filter (where (c.id = any(rc.marcados)) = g.eh_ia) ok
+      from public.respostas_comp rc
+      join public.conteudos c on c.comparacao_id = rc.comparacao_id
+      join public.gabarito g on g.conteudo_id = c.id
+     where rc.comparacao_id = p_comp and rc.marcados is not null
+     group by rc.id
+  ), up as (
+    update public.respostas_comp rc
+       set n_reais_ia = novo.n_ia, acertos_itens = novo.ok, acertou = (novo.ok = novo.n)
+      from novo
+     where rc.id = novo.id
+       and (rc.n_reais_ia, rc.acertos_itens, rc.acertou) is distinct from (novo.n_ia, novo.ok, (novo.ok = novo.n))
+    returning 1
+  )
+  select count(*) into v from up;
+  return v;
+end $$;
+revoke execute on function public.recalcular_comparacao(uuid) from public, anon, authenticated;
+
+-- corrige a origem (IA ou real) de UM conteúdo e recalcula as respostas já dadas
+create or replace function public.corrigir_origem(p_conteudo uuid, p_eh_ia boolean)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_old boolean; v_comp uuid; v_afet int := 0; v_alt int := 0; v_leg int := 0;
+begin
+  if not public.sou_admin() then raise exception 'acesso negado'; end if;
+  select g.eh_ia, c.comparacao_id into v_old, v_comp
+    from public.gabarito g join public.conteudos c on c.id = g.conteudo_id
+   where g.conteudo_id = p_conteudo;
+  if not found then raise exception 'conteudo sem gabarito'; end if;
+  if v_old = p_eh_ia then return jsonb_build_object('alterado', false, 'respostas', 0, 'mudaram', 0, 'comp_legadas', 0); end if;
+
+  update public.gabarito set eh_ia = p_eh_ia where conteudo_id = p_conteudo;
+
+  if v_comp is null then
+    select count(*), count(*) filter (where acertou <> (resposta_ia = p_eh_ia))
+      into v_afet, v_alt from public.respostas where conteudo_id = p_conteudo;
+    update public.respostas set acertou = (resposta_ia = p_eh_ia) where conteudo_id = p_conteudo;
+  else
+    v_alt := public.recalcular_comparacao(v_comp);
+    select count(*) filter (where marcados is not null), count(*) filter (where marcados is null)
+      into v_afet, v_leg from public.respostas_comp where comparacao_id = v_comp;
+  end if;
+
+  insert into public.correcoes_gabarito (conteudo_id, de_eh_ia, para_eh_ia, respostas_afetadas, respostas_alteradas, por)
+  values (p_conteudo, v_old, p_eh_ia, v_afet, v_alt, auth.uid());
+  return jsonb_build_object('alterado', true, 'respostas', v_afet, 'mudaram', v_alt, 'comp_legadas', v_leg);
+end $$;
+
+-- recalcula TODAS as respostas a partir do gabarito atual (idempotente, não apaga nada)
+create or replace function public.recalcular_respostas() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_ind int; v_cmp int; v_leg int;
+begin
+  if not public.sou_admin() then raise exception 'acesso negado'; end if;
+  with up as (
+    update public.respostas r set acertou = (r.resposta_ia = g.eh_ia)
+      from public.gabarito g
+     where g.conteudo_id = r.conteudo_id and r.acertou <> (r.resposta_ia = g.eh_ia)
+    returning 1)
+  select count(*) into v_ind from up;
+  select coalesce(sum(public.recalcular_comparacao(id)), 0)::int into v_cmp from public.comparacoes;
+  select count(*) into v_leg from public.respostas_comp where marcados is null;
+  return jsonb_build_object('individuais_corrigidas', v_ind, 'comparacoes_corrigidas', v_cmp, 'comparacoes_legadas', v_leg);
+end $$;
+
 create or replace function public.admin_dados() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 begin
@@ -216,14 +307,20 @@ begin
       select jsonb_agg(jsonb_build_object(
         'participante_id', rc.participante_id, 'comparacao_id', rc.comparacao_id, 'tipo', cp.tipo,
         'n_itens', rc.n_itens, 'n_reais_ia', rc.n_reais_ia, 'n_marcados_ia', rc.n_marcados_ia,
-        'acertos_itens', rc.acertos_itens, 'acertou', rc.acertou, 'tempo_ms', rc.tempo_ms))
+        'acertos_itens', rc.acertos_itens, 'acertou', rc.acertou, 'tempo_ms', rc.tempo_ms, 'marcados', rc.marcados))
       from public.respostas_comp rc join public.comparacoes cp on cp.id = rc.comparacao_id
     ), '[]'::jsonb),
     'comparacoes', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'ativo', ativo) order by created_at) from public.comparacoes), '[]'::jsonb),
     'conteudos', coalesce((
       select jsonb_agg(jsonb_build_object('id', c.id, 'tipo', c.tipo, 'titulo', c.titulo, 'eh_ia', g.eh_ia,
-                       'ativo', c.ativo, 'comparacao_id', c.comparacao_id, 'posicao', c.posicao) order by c.created_at)
+                       'ativo', c.ativo, 'comparacao_id', c.comparacao_id, 'posicao', c.posicao,
+                       'url', c.url, 'texto', c.texto) order by c.created_at)
       from public.conteudos c left join public.gabarito g on g.conteudo_id = c.id
+    ), '[]'::jsonb),
+    'correcoes', coalesce((
+      select jsonb_agg(jsonb_build_object('em', x.em, 'conteudo_id', x.conteudo_id, 'de', x.de_eh_ia, 'para', x.para_eh_ia,
+                       'afetadas', x.respostas_afetadas, 'alteradas', x.respostas_alteradas) order by x.em desc)
+      from (select * from public.correcoes_gabarito order by em desc limit 50) x
     ), '[]'::jsonb)
   );
 end $$;
@@ -234,6 +331,10 @@ grant execute on function public.enviar_resposta(uuid,uuid,boolean,int) to anon,
 grant execute on function public.enviar_comparacao(uuid,uuid,uuid[],int) to anon, authenticated;
 grant execute on function public.finalizar_participante(uuid,int) to anon, authenticated;
 revoke execute on function public.admin_dados() from anon;
+revoke execute on function public.corrigir_origem(uuid,boolean) from anon;
+grant execute on function public.corrigir_origem(uuid,boolean) to authenticated;
+revoke execute on function public.recalcular_respostas() from anon;
+grant execute on function public.recalcular_respostas() to authenticated;
 grant execute on function public.admin_dados() to authenticated;
 
 -- ---------- TEMPO REAL (admin vê as respostas chegando) ----------
