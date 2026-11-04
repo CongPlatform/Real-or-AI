@@ -20,7 +20,7 @@ const Dica = ({ active, payload, rotulo, unid }) => {
   );
 };
 
-function Barras({ dados, y = 'pct', x = 'nome', cor = COR.ia, dominio = [0, 100], unid = '%', ref = 50, rotulo = 'Acerto', longo = false }) {
+function Barras({ dados, y = 'pct', x = 'nome', cor = COR.ia, dominio = [0, 100], unid = '%', linha = 50, rotulo = 'Acerto', longo = false }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={dados} margin={{ top: 20, right: 8, left: -10, bottom: 0 }}>
@@ -28,7 +28,7 @@ function Barras({ dados, y = 'pct', x = 'nome', cor = COR.ia, dominio = [0, 100]
         <XAxis dataKey={x} tick={{ fontSize: 11 }} interval={0} angle={longo ? -25 : 0} textAnchor={longo ? 'end' : 'middle'} height={longo ? 78 : 30} />
         <YAxis domain={dominio} tick={{ fontSize: 11 }} unit={unid} allowDecimals={false} />
         <Tooltip content={<Dica rotulo={rotulo} unid={unid} />} />
-        {ref !== false && <ReferenceLine y={ref} stroke={COR.ref} strokeDasharray="4 4" />}
+        {linha !== false && <ReferenceLine y={linha} stroke={COR.ref} strokeDasharray="4 4" />}
         <Bar dataKey={y} fill={cor} stroke={COR.ink} strokeWidth={2} radius={[6, 6, 0, 0]}>
           <LabelList dataKey={y} position="top" formatter={(v) => f1(v, 0)} fontSize={11} />
         </Bar>
@@ -116,7 +116,7 @@ export function Analises({ s }) {
       <h3 className="grupo-t">Resultado geral</h3>
       <div className="grade">
         <section className="painel"><h2>Acerto por tipo de conteúdo</h2><Barras dados={s.tipoPool} x="rotulo" cor={COR.ia} /></section>
-        <section className="painel"><h2>Distribuição das notas (nº de pessoas)</h2><Barras dados={s.hist} y="n" dominio={[0, 'auto']} unid="" ref={false} rotulo="Pessoas" cor={COR.sol} /></section>
+        <section className="painel"><h2>Distribuição das notas (nº de pessoas)</h2><Barras dados={s.hist} y="n" dominio={[0, 'auto']} unid="" linha={false} rotulo="Pessoas" cor={COR.sol} /></section>
         <section className="painel">
           <h2>Matriz de confusão</h2>
           <table className="conf">
@@ -128,7 +128,7 @@ export function Analises({ s }) {
           </table>
           <p className="mut">Acerto quando era IA: {f1(b.sens)}% · quando era real: {f1(b.esp)}% · acurácia balanceada: {f1(b.bal)}%.</p>
         </section>
-        <section className="painel"><h2>Tempo mediano por tipo (s)</h2><Barras dados={s.porTipo.filter((t) => Number.isFinite(t.tempoMed)).map((t) => ({ nome: t.nome, v: t.tempoMed }))} y="v" dominio={[0, 'auto']} unid="s" ref={false} rotulo="Tempo" cor={COR.ia} /></section>
+        <section className="painel"><h2>Tempo mediano por tipo (s)</h2><Barras dados={s.porTipo.filter((t) => Number.isFinite(t.tempoMed)).map((t) => ({ nome: t.nome, v: t.tempoMed }))} y="v" dominio={[0, 'auto']} unid="s" linha={false} rotulo="Tempo" cor={COR.ia} /></section>
       </div>
 
       <h3 className="grupo-t">Perfil de quem respondeu</h3>
@@ -137,7 +137,7 @@ export function Analises({ s }) {
         <section className="painel"><h2>Acerto por escolaridade</h2><Barras dados={s.porEsc} cor={COR.real} longo /></section>
         <section className="painel"><h2>Acerto por frequência de uso de IA</h2><Barras dados={s.porFreq} cor={COR.ia} /><p className="mut">Correlação (frequência × acerto): r = {f1(s.rFreq, 2)}</p></section>
         <section className="painel"><h2>Acerto por autoavaliação (1 a 5)</h2><Barras dados={s.porConf} cor={COR.sol} /><p className="mut">Correlação (autoavaliação × acerto): r = {f1(s.rConf, 2)}</p></section>
-        <section className="painel"><h2>Para que usam IA</h2><Barras dados={s.usos} x="nome" y="n" dominio={[0, 'auto']} unid="" ref={false} rotulo="Pessoas" cor={COR.real} /></section>
+        <section className="painel"><h2>Para que usam IA</h2><Barras dados={s.usos} x="nome" y="n" dominio={[0, 'auto']} unid="" linha={false} rotulo="Pessoas" cor={COR.real} /></section>
         <section className="painel">
           <h2>Estimado × real</h2>
           <ResponsiveContainer width="100%" height={260}>
@@ -158,9 +158,9 @@ export function Analises({ s }) {
         <h3 className="grupo-t">Comparações (2 conteúdos por rodada)</h3>
         <p className="mut">Acertar a rodada = acertar os dois itens. Chutando, a pessoa acerta 25% das rodadas e 50% dos itens.</p>
         <div className="grade">
-          <section className="painel"><h2>Rodadas certas por cenário</h2><Barras dados={s.comp.cenPool} x="rotulo" cor={COR.ia} ref={25} /></section>
-          <section className="painel"><h2>Rodadas certas por tipo</h2><Barras dados={s.comp.tipoPool} x="rotulo" cor={COR.real} ref={25} /></section>
-          <section className="painel"><h2>Quanto marcaram “IA” em cada cenário</h2><Barras dados={s.comp.tend} y="media" ref={false} rotulo="Marcaram IA" cor={COR.sol} /><p className="mut">Se acertassem sempre: 0%, 50% e 100%.</p></section>
+          <section className="painel"><h2>Rodadas certas por cenário</h2><Barras dados={s.comp.cenPool} x="rotulo" cor={COR.ia} linha={25} /></section>
+          <section className="painel"><h2>Rodadas certas por tipo</h2><Barras dados={s.comp.tipoPool} x="rotulo" cor={COR.real} linha={25} /></section>
+          <section className="painel"><h2>Quanto marcaram “IA” em cada cenário</h2><Barras dados={s.comp.tend} y="media" linha={false} rotulo="Marcaram IA" cor={COR.sol} /><p className="mut">Se acertassem sempre: 0%, 50% e 100%.</p></section>
           <section className="painel">
             <h2>Individual × comparação (por item)</h2>
             <Barras dados={[{ nome: 'Individual', pct: s.geral.media }, { nome: 'Comparação', pct: s.comp.item.media }]} cor={COR.ia} />

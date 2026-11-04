@@ -73,7 +73,7 @@ export const SLIDES = [
           {s.totais.rodadas > 0 && <Kpi v={s.totais.rodadas} l="rodadas de comparação" />}
           <p className="s-nota">Itens por pessoa: {s.versoes.map((v) => `${v.itens} (${v.pessoas} pessoas)`).join(' · ')}</p>
         </div>
-        <BarrasFixas dados={s.porFaixa} y="pessoas" dominio={[0, 'auto']} unid="" ref={false} />
+        <BarrasFixas dados={s.porFaixa} y="pessoas" dominio={[0, 'auto']} unid="" linha={false} />
       </div>
     </>) },
 
@@ -88,7 +88,7 @@ export const SLIDES = [
           <Kpi v={f1(g.desvio)} l="desvio padrão (p.p.)" />
           <Kpi v={`${f1(g.ic[0], 0)}–${f1(g.ic[1], 0)}%`} l="IC 95% da média" cor={COR.ia} branco />
         </div>
-        <div><BarrasFixas dados={s.hist} y="n" x="nome" dominio={[0, 'auto']} unid="" ref={false} cor={COR.sol} w={620} h={360} /><p className="s-nota">Quantas pessoas em cada faixa de acerto (%)</p></div>
+        <div><BarrasFixas dados={s.hist} y="n" x="nome" dominio={[0, 'auto']} unid="" linha={false} cor={COR.sol} w={620} h={360} /><p className="s-nota">Quantas pessoas em cada faixa de acerto (%)</p></div>
       </div>
     </>); } },
 
@@ -136,7 +136,7 @@ export const SLIDES = [
     render: (s) => (<>
       <Topo t="Comparando dois conteúdos" sub="Acertar a rodada = acertar os dois itens. Chutando, o acerto seria de 25%." />
       <div className="s-corpo">
-        <BarrasFixas dados={s.comp.cenPool} ref={25} w={600} />
+        <BarrasFixas dados={s.comp.cenPool} linha={25} w={600} />
         <div className="s-kpis">
           <Kpi v={`${f1(s.comp.exato.media, 0)}%`} l="rodadas com os dois itens certos" cor={COR.real} />
           <Kpi v={`${f1(s.comp.item.media, 0)}%`} l="itens certos nas comparações" />
@@ -167,10 +167,10 @@ export const SLIDES = [
     render: (s) => (<><Topo t="E a escolaridade?" /><div className="s-corpo"><BarrasFixas dados={s.porEsc} x="nome" w={1000} h={420} cor={COR.real} angulo={-20} /></div></>) },
 
   { id: 'usos', nome: 'Para que usam IA', padrao: false, ok: (s) => s.usos.some((u) => u.n > 0),
-    render: (s) => (<><Topo t="Para que as pessoas usam IA" sub="Cada pessoa podia marcar mais de uma opção" /><div className="s-corpo"><BarrasFixas dados={s.usos} x="nome" y="n" dominio={[0, 'auto']} unid="" ref={false} w={900} h={400} cor={COR.sol} /></div></>) },
+    render: (s) => (<><Topo t="Para que as pessoas usam IA" sub="Cada pessoa podia marcar mais de uma opção" /><div className="s-corpo"><BarrasFixas dados={s.usos} x="nome" y="n" dominio={[0, 'auto']} unid="" linha={false} w={900} h={400} cor={COR.sol} /></div></>) },
 
   { id: 'tempo', nome: 'Tempo por tipo', padrao: false, ok: (s) => s.porTipo.some((t) => Number.isFinite(t.tempoMed)),
-    render: (s) => (<><Topo t="Quanto tempo levamos para decidir" sub="Mediana, em segundos" /><div className="s-corpo"><BarrasFixas dados={s.porTipo.filter((t) => Number.isFinite(t.tempoMed)).map((t) => ({ rotulo: t.nome, v: t.tempoMed }))} y="v" dominio={[0, 'auto']} unid="s" ref={false} w={800} h={400} cor={COR.ia} /></div></>) },
+    render: (s) => (<><Topo t="Quanto tempo levamos para decidir" sub="Mediana, em segundos" /><div className="s-corpo"><BarrasFixas dados={s.porTipo.filter((t) => Number.isFinite(t.tempoMed)).map((t) => ({ rotulo: t.nome, v: t.tempoMed }))} y="v" dominio={[0, 'auto']} unid="s" linha={false} w={800} h={400} cor={COR.ia} /></div></>) },
 ];
 
 export function Slide({ def, s }) {
