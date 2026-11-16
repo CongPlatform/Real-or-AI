@@ -7,6 +7,14 @@ export const variancia = (a) => {
   return a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1); // amostral (n-1)
 };
 export const desvio = (a) => Math.sqrt(variancia(a));
+export const moda = (a) => {
+  if (!a.length) return NaN;
+  const freq = new Map();
+  a.forEach((x) => { const k = Math.round(x); freq.set(k, (freq.get(k) || 0) + 1); });
+  const max = Math.max(...freq.values());
+  if (max < 2) return NaN;
+  return [...freq].filter(([, n]) => n === max).map(([v]) => v);
+};
 export const quantil = (a, q) => {
   if (!a.length) return NaN;
   const s = [...a].sort((x, y) => x - y);
@@ -34,9 +42,11 @@ export function pearson(xs, ys) {
 export function resumo(a, mu0 = 50) {
   const n = a.length, m = media(a), s = desvio(a), ep = s / Math.sqrt(n), t = (m - mu0) / ep;
   return {
-    n, media: m, mediana: quantil(a, 0.5), desvio: s, variancia: variancia(a),
-    min: n ? Math.min(...a) : NaN, max: n ? Math.max(...a) : NaN, q1: quantil(a, 0.25), q3: quantil(a, 0.75),
+    n, media: m, mediana: quantil(a, 0.5), moda: moda(a), desvio: s, variancia: variancia(a),
+    min: n ? Math.min(...a) : NaN, max: n ? Math.max(...a) : NaN, amplitude: n ? Math.max(...a) - Math.min(...a) : NaN,
+    q1: quantil(a, 0.25), q3: quantil(a, 0.75), iqr: quantil(a, 0.75) - quantil(a, 0.25),
     cv: (s / m) * 100, ep, ic: [Math.max(0, m - 1.96 * ep), Math.min(100, m + 1.96 * ep)],
+    d: (m - mu0) / s,
     t, p: 2 * (1 - normalCdf(Math.abs(t))),
   };
 }

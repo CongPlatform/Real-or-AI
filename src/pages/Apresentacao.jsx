@@ -11,8 +11,25 @@ function inicial() {
   const ord = (x?.ordem || []).filter((i) => IDS.includes(i));
   return {
     ordem: [...ord, ...IDS.filter((i) => !ord.includes(i))],
-    marcados: x?.marcados ? x.marcados.filter((i) => IDS.includes(i)) : SLIDES.filter((d) => d.padrao).map((d) => d.id),
+    marcados: x?.marcados ? [...new Set([...x.marcados.filter((i) => IDS.includes(i)), ...SLIDES.filter((d) => d.padrao && !x.marcados.includes(d.id)).map((d) => d.id)])] : SLIDES.filter((d) => d.padrao).map((d) => d.id),
   };
+}
+
+function SlidePreview({ def, s, onClose }) {
+  const [k, setK] = useState(1);
+  useEffect(() => {
+    const resize = () => setK(Math.min((innerWidth * .92) / 1280, (innerHeight * .78) / 720));
+    resize(); addEventListener('resize', resize);
+    return () => removeEventListener('resize', resize);
+  }, []);
+  return (
+    <div className="slide-preview-overlay" onClick={onClose}>
+      <div className="slide-preview-shell" style={{ width: 1280 * k, height: 720 * k }} onClick={(e) => e.stopPropagation()}>
+        <button className="chip slide-preview-close" onClick={onClose}>Fechar prévia ✕</button>
+        <div className="slide-preview-scaled" style={{ transform: `scale(${k})` }}><Slide def={def} s={s} /></div>
+      </div>
+    </div>
+  );
 }
 
 function Apresentar({ lista, s, onFechar }) {
@@ -53,6 +70,7 @@ export default function Apresentacao({ s }) {
   const [est, setEst] = useState(inicial);
   const [rodando, setRodando] = useState(false);
   const [imp, setImp] = useState(false);
+  const [preview, setPreview] = useState(null);
   useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(est)); } catch { /* ignora */ } }, [est]);
 
   const lista = useMemo(
@@ -100,7 +118,7 @@ export default function Apresentacao({ s }) {
           return (
             <div key={id} className={'pick' + (on ? '' : ' off')}>
               <input type="checkbox" checked={on} disabled={!disp} onChange={() => alterna(id)} aria-label={d.nome} />
-              <div className="thumb">{disp ? <div><Slide def={d} s={s} /></div> : <span className="mut">sem dados</span>}</div>
+              <button type="button" className="thumb" onClick={() => disp && setPreview(d.id)} disabled={!disp} aria-label={`Ampliar prévia: ${d.nome}`}>{disp ? <div><Slide def={d} s={s} /></div> : <span className="mut">sem dados</span>}<span className="thumb-hint">Ampliar prévia</span></button>
               <div><b>{d.nome}</b>{d.padrao && <span className="sel real" style={{ marginLeft: 8 }}>recomendado</span>}{!disp && <p className="mut">Ainda não há dados para este slide.</p>}</div>
               <div className="mover">
                 <button className="chip" disabled={n === 0} onClick={() => mover(id, -1)} aria-label="Subir">↑</button>
@@ -111,6 +129,7 @@ export default function Apresentacao({ s }) {
         })}
       </div>
 
+      {preview && <SlidePreview def={SLIDES.find((x) => x.id === preview)} s={s} onClose={() => setPreview(null)} />}
       {rodando && lista.length > 0 && <Apresentar lista={lista} s={s} onFechar={fechar} />}
       {imp && createPortal(<div className="so-impressao">{lista.map((d) => <Slide key={d.id} def={d} s={s} />)}</div>, document.body)}
     </div>

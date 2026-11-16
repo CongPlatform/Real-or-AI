@@ -42,10 +42,10 @@ function Coluna({ titulo, itens }) {
 
 const Tab = ({ linhas }) => (
   <table className="s-tab">
-    <thead><tr><th>Grupo</th><th>Pessoas</th><th>Média</th><th>Mediana</th><th>Desvio</th><th>Variância</th><th>IC 95%</th></tr></thead>
+    <thead><tr><th>Grupo</th><th>Pessoas</th><th>Média</th><th>Mediana</th><th>Desvio</th><th>Variância</th><th>Moda</th><th>Q1–Q3</th><th>Amplitude</th><th>IC 95%</th></tr></thead>
     <tbody>
       {linhas.map((r) => (
-        <tr key={r.nome}><td>{r.nome}</td><td>{r.n}</td><td>{f1(r.media)}</td><td>{f1(r.mediana)}</td><td>{f1(r.desvio)}</td><td>{f1(r.variancia)}</td><td>{f1(r.ic[0], 0)}–{f1(r.ic[1], 0)}</td></tr>
+        <tr key={r.nome}><td>{r.nome}</td><td>{r.n}</td><td>{f1(r.media)}</td><td>{f1(r.mediana)}</td><td>{f1(r.desvio)}</td><td>{f1(r.variancia)}</td><td>{Array.isArray(r.moda) ? r.moda.map((v) => `${v}%`).join(' / ') : '—'}</td><td>{f1(r.q1, 0)}–{f1(r.q3, 0)}</td><td>{f1(r.amplitude, 0)} p.p.</td><td>{f1(r.ic[0], 0)}–{f1(r.ic[1], 0)}</td></tr>
       ))}
     </tbody>
   </table>
@@ -149,6 +149,40 @@ export const SLIDES = [
     render: (s) => { const k = Math.min(3, Math.floor(s.itens.length / 2)); return (<>
       <Topo t="Os conteúdos que mais enganaram" sub="e os que quase todo mundo acertou (mínimo de 5 respostas cada)" />
       <div className="s-corpo s-duas"><Coluna titulo="Mais enganosos" itens={s.itens.slice(0, k)} /><Coluna titulo="Mais fáceis" itens={s.itens.slice(-k).reverse()} /></div>
+    </>); } },
+
+  { id: 'dispersao', nome: 'Dispersão dos resultados', padrao: true, ok: (s) => s.geral.n > 2,
+    render: (s) => { const g = s.geral; return (<>
+      <Topo t="Não basta saber a média" sub="A dispersão mostra o quanto os resultados individuais variaram entre si." />
+      <div className="s-corpo">
+        <div className="s-kpis">
+          <Kpi v={`${f1(g.desvio)} p.p.`} l="desvio padrão" cor={COR.ia} branco />
+          <Kpi v={`${f1(g.variancia)} p.p.²`} l="variância amostral" />
+          <Kpi v={`${f1(g.q1, 0)}–${f1(g.q3, 0)}%`} l="intervalo interquartil (50% central)" cor={COR.real} />
+          <Kpi v={`${f1(g.min, 0)}–${f1(g.max, 0)}%`} l="menor e maior desempenho" />
+        </div>
+        <div className="s-kpis">
+          <Kpi v={`${f1(g.amplitude, 0)} p.p.`} l="amplitude total" />
+          <Kpi v={Number.isFinite(g.d) ? f1(g.d, 2) : '—'} l="tamanho do efeito (Cohen d vs. 50%)" />
+          <Kpi v={Number.isFinite(g.cv) ? `${f1(g.cv, 1)}%` : '—'} l="coeficiente de variação" />
+          <p className="s-nota"><b>Como ler:</b> desvio padrão baixo indica resultados mais próximos da média; alto indica maior heterogeneidade entre participantes. O intervalo interquartil concentra a metade central dos resultados e é menos sensível a extremos.</p>
+        </div>
+      </div>
+    </>); } },
+
+  { id: 'doque', nome: 'Do que os dados mostram', padrao: true, ok: (s) => s.geral.n > 1,
+    render: (s) => { const g = s.geral, b = s.balanceada; const acima = g.p < 0.05 && g.media > 50; const abaixo = g.p < 0.05 && g.media < 50; return (<>
+      <Topo t="Do que os dados mostram" sub="Interpretação dos resultados observados — sem transformar associação em causa." />
+      <div className="s-corpo s-duas">
+        <div className="s-col"><h3>O desempenho observado</h3>
+          <p className="s-nota">A média foi <b>{f1(g.media, 1)}%</b>, diante de 50% esperados em uma escolha aleatória. {acima ? 'Nesta amostra, o desempenho ficou estatisticamente acima do acaso.' : abaixo ? 'Nesta amostra, o desempenho ficou estatisticamente abaixo do acaso.' : 'A pesquisa não encontrou evidência estatística suficiente para afirmar que o desempenho difere do acaso.'}</p>
+          <p className="s-nota">O desvio padrão foi de <b>{f1(g.desvio, 1)} pontos percentuais</b>. Em conjunto com o intervalo interquartil ({f1(g.q1, 0)}% a {f1(g.q3, 0)}%), ele mostra o quanto os resultados individuais se espalharam em torno da média.</p>
+        </div>
+        <div className="s-col"><h3>O que isso permite — e não permite — dizer</h3>
+          <p className="s-nota">{Number.isFinite(b.sens) && Number.isFinite(b.esp) ? `A taxa de acerto foi ${f1(b.sens, 0)}% para conteúdos de IA e ${f1(b.esp, 0)}% para conteúdos reais. A diferença ajuda a identificar onde os participantes tiveram mais dificuldade.` : 'A comparação entre conteúdos reais e de IA depende da quantidade de respostas válidas em cada grupo.'}</p>
+          <p className="s-nota">Os resultados descrevem os participantes e os materiais testados. Não provam que idade, tempo de tela ou cansaço causem menor reconhecimento. Para isso, seria necessário medir essas variáveis diretamente e controlar outros fatores.</p>
+        </div>
+      </div>
     </>); } },
 
   { id: 'conclusao', nome: 'Conclusões', padrao: true, ok: (s) => s.geral.n > 1,

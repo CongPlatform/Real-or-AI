@@ -47,11 +47,11 @@
 
 /* ===== apresentação: seleção ===== */
 .picker{display:flex;flex-direction:column;gap:12px}
-.pick{display:grid;grid-template-columns:auto 256px 1fr auto;gap:16px;align-items:center;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:10px 14px;box-shadow:3px 3px 0 var(--ink)}
+.pick{display:grid;grid-template-columns:auto 320px 1fr auto;gap:16px;align-items:center;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:10px 14px;box-shadow:3px 3px 0 var(--ink)}
 .pick.off{opacity:.55;box-shadow:none}
 .pick input[type=checkbox]{width:22px;height:22px;accent-color:var(--ia)}
-.thumb{width:256px;height:144px;overflow:hidden;border:2.5px solid var(--ink);border-radius:8px;pointer-events:none;display:flex;align-items:center;justify-content:center;background:#fff}
-.thumb>div{transform:scale(.2);transform-origin:top left;width:1280px;height:720px;flex:none;align-self:flex-start}
+.thumb{width:320px;height:180px;overflow:hidden;border:2.5px solid var(--ink);border-radius:8px;position:relative;cursor:zoom-in;display:flex;align-items:flex-start;justify-content:flex-start;background:#fff;padding:0;color:inherit}
+.thumb>div{transform:scale(.25);transform-origin:top left;width:1280px;height:720px;flex:none;align-self:flex-start;pointer-events:none}.thumb-hint{position:absolute;right:7px;bottom:7px;background:#14122B;color:#fff;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:800;opacity:0;transition:opacity .15s}.thumb:hover .thumb-hint,.thumb:focus-visible .thumb-hint{opacity:1}
 .mover{display:flex;gap:6px}
 .mover .chip{min-height:40px;padding:8px 12px}
 @media(max-width:760px){.pick{grid-template-columns:auto 1fr auto}.thumb{display:none}}
@@ -102,3 +102,10 @@
   .so-impressao{display:block}
   .so-impressao .slide{break-after:page;page-break-after:always}
 }
+
+/* Prévia ampliada dos slides */
+.slide-preview-overlay{position:fixed;inset:0;z-index:10000;background:rgba(10,8,25,.86);display:flex;align-items:center;justify-content:center;padding:24px}
+.slide-preview-shell{position:relative;flex:none;}
+.slide-preview-close{position:absolute;right:0;top:-48px;background:#fff;color:#14122B;z-index:2}
+.slide-preview-scaled{width:1280px;height:720px;transform-origin:top left;border:3px solid #fff;border-radius:12px;overflow:hidden;box-shadow:0 20px 70px #0008}
+@media(max-width:760px){.pick{grid-template-columns:auto 1fr auto}.thumb{display:none}}
