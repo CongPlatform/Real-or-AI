@@ -1,0 +1,10 @@
+PATCH DE CORREÇÃO — APRESENTAÇÃO REAL OU IA?
+
+1. Extraia o ZIP na raiz do projeto (a pasta que contém package.json).
+2. Aceite substituir os quatro arquivos dentro de src/.
+3. Faça commit/push de TODOS esses arquivos e aguarde o novo deploy do frontend.
+4. No navegador, faça recarga forçada (Ctrl + Shift + R) e abra Admin > Apresentação.
+
+Esta correção reforça a prioridade do CSS dos slides sobre o estilo-base .slide, atualiza a chave de preferências locais para não reaproveitar seleções antigas e adiciona o marcador “REDESIGN · 25/11/2026”.
+
+DIAGNÓSTICO: Se o marcador aparecer, o novo componente foi publicado; clique em “Todos” para incluir slides opcionais. Se NÃO aparecer, o navegador ainda recebe uma versão antiga ou o deploy usa outra pasta/branch. A impossibilidade de entrar no admin local é independente: o login depende das credenciais e da configuração do Supabase.

@@ -109,3 +109,21 @@
 .slide-preview-close{position:absolute;right:0;top:-48px;background:#fff;color:#14122B;z-index:2}
 .slide-preview-scaled{width:1280px;height:720px;transform-origin:top left;border:3px solid #fff;border-radius:12px;overflow:hidden;box-shadow:0 20px 70px #0008}
 @media(max-width:760px){.pick{grid-template-columns:auto 1fr auto}.thumb{display:none}}
+
+
+
+/* PATCH APRESENTAÇÃO — garante prioridade sobre o estilo-base .slide */
+.apres-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.apres-heading h2{margin:0}
+.apres-build{display:inline-flex;align-items:center;padding:5px 9px;border:1px solid #DCD7EA;border-radius:999px;background:#F2EFFB;color:#6545F6;font-size:10px;font-weight:800;letter-spacing:.08em}
+.slide.deck-slide{
+  width:1280px;height:720px;min-width:1280px;min-height:720px;
+  box-sizing:border-box;position:relative;overflow:hidden;
+  padding:42px 58px 25px;display:flex;flex-direction:column;gap:17px;
+  color:#202039;background:#FBFAFE;
+  background-image:radial-gradient(#DCD7E9 .65px,transparent .65px);
+  background-size:22px 22px;font-family:Inter,'DM Sans',system-ui,sans-serif;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+}
+.slide.deck-slide *{box-sizing:border-box}
+.slide.deck-slide h2,.slide.deck-slide h3,.slide.deck-slide p{margin-top:0}

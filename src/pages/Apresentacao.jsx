@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLIDES, Slide } from '../slides/slides';
 
-const LS = 'realia_slides_v1';
+const LS = 'realia_slides_v2';
 const IDS = SLIDES.map((d) => d.id);
 
 function inicial() {
@@ -100,7 +100,10 @@ export default function Apresentacao({ s }) {
     <div className="dash">
       <div className="secao-topo">
         <div>
-          <h2>Apresentação</h2>
+          <div className="apres-heading">
+            <h2>Apresentação</h2>
+            <span className="apres-build">REDESIGN · 25/11/2026</span>
+          </div>
           <p className="mut">Marque os slides que entram, mude a ordem com ↑ ↓ e apresente em tela cheia (setas do teclado ou toque). Os números vêm sempre dos dados atuais e cada slide mostra quantas pessoas e respostas ele considera.</p>
         </div>
         <div className="chips">
