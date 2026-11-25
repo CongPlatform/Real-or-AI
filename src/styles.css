@@ -701,16 +701,8 @@ details p{line-height:1.65;font-size:.92rem}
 .v16-table tr:nth-child(even) td{background:#FAF9FE}
 .v16-formula{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:18px;padding:12px}
 .v16-formula>span{font-size:.75rem;letter-spacing:.15em;color:var(--ia);font-weight:900}
-.v16-formula>p{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.15rem,1.8vw,1.8rem);line-height:1.3;font-weight:800;margin:0;overflow-wrap:anywhere}
-.v16-formula-def,.v16-formula-bloco{width:100%;display:flex;flex-direction:column;gap:7px}
-.v16-formula-def>b,.v16-formula-bloco>b{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:#746b87}
-.v16-formula-def>p{font-size:clamp(.88rem,1.05vw,1rem);line-height:1.5;font-weight:500;margin:0;color:#302a40}
-.v16-formula-bloco{background:#F4F1FB;border-radius:12px;padding:12px 15px}
-.v16-formula-aplicacao{background:#EFF8E2;border:1px solid #D5E9B8}
-.v16-formula-resultado{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-.v16-formula-resultado>span{font-size:.72rem;letter-spacing:.12em;font-weight:900;color:#746b87}
-.v16-formula-resultado>strong{font-size:clamp(1.8rem,3.2vw,3.4rem);color:var(--ia);font-weight:950}
-.v16-formula>small{line-height:1.5;color:#746b87;font-size:.76rem}
+.v16-formula>p{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.5rem,2.6vw,3rem);line-height:1.3;font-weight:850;margin:0;overflow-wrap:anywhere}
+.v16-formula>strong{font-size:clamp(2rem,4vw,5rem);color:var(--ia)}.v16-formula>small{line-height:1.6}
 .v16-conclusao{display:flex;flex-direction:column;gap:12px}.v16-conclusao b{font-size:clamp(1.2rem,2.1vw,2rem);color:var(--ia)}.v16-conclusao span{margin-bottom:15px;color:var(--mut);font-size:1.1rem}
 .v16-sem-dados{text-align:center;color:#6A607D;font-weight:700;font-size:1.05rem;padding:18px}
 .v16-indice{overflow-y:auto;flex:1;width:min(1200px,100%);margin:0 auto;padding:clamp(22px,5vw,55px)}
@@ -828,3 +820,18 @@ details p{line-height:1.65;font-size:.92rem}
 .v31-legenda-item i{width:11px;height:11px;border-radius:50%;display:block;flex-shrink:0;border:1px solid #201b36}
 .v31-grafico .recharts-wrapper{max-width:100%}
 @media(max-width:750px){.v31-grafico{gap:4px}.v31-legenda{gap:6px 10px;max-height:70px}.v31-legenda-item{font-size:11px}}
+
+
+/* Slides didáticos de matemática estatística */
+.s-matematica{display:grid;grid-template-columns:1.08fr .92fr;gap:24px;align-items:center;}
+.s-mat-texto{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.s-mat-bloco{background:#f5f7f9;border:1px solid #e4e9ee;border-radius:13px;padding:11px 14px;}
+.s-mat-bloco>span,.s-mat-resultado>span{display:block;font-size:10px;font-weight:800;letter-spacing:.12em;color:#637184;margin-bottom:5px;}
+.s-mat-bloco p{font-size:14px;line-height:1.35;margin:0;color:#243247;}
+.s-mat-formula{display:block;font-size:21px;line-height:1.3;color:#14263c;overflow-wrap:anywhere;}
+.s-mat-aplicacao{background:#eef4ff;border-color:#d5e2fa;}
+.s-mat-conta{display:block;font-size:17px;line-height:1.35;color:#193f78;overflow-wrap:anywhere;}
+.s-mat-resultado{background:#172b46;color:#fff;border-radius:14px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.s-mat-resultado>span{color:#c7d4e5;margin:0;}.s-mat-resultado>b{font-size:25px;color:#c6f432;}
+.s-mat-texto>small{font-size:10px;color:#687789;}.s-mat-grafico{min-width:0;background:#fff;border:1px solid #e7ebef;border-radius:15px;padding:10px;}
+@media(max-width:900px){.s-matematica{grid-template-columns:1fr;gap:10px}.s-mat-grafico{display:none}.s-mat-formula{font-size:18px}.s-mat-conta{font-size:15px}}
