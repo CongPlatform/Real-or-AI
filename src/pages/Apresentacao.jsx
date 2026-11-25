@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLIDES, Slide } from '../slides/slides';
 
-const LS = 'realia_slides_v2';
+const LS = 'realia_slides_amostra_integrada_v5';
 const IDS = SLIDES.map((d) => d.id);
 
 function inicial() {
@@ -104,7 +104,7 @@ export default function Apresentacao({ s }) {
             <h2>Apresentação</h2>
             <span className="apres-build">REDESIGN · 25/11/2026</span>
           </div>
-          <p className="mut">Marque os slides que entram, mude a ordem com ↑ ↓ e apresente em tela cheia (setas do teclado ou toque). Os números vêm sempre dos dados atuais e cada slide mostra quantas pessoas e respostas ele considera.</p>
+          <p className="mut">A análise reúne todas as sessões finalizadas e não excluídas, mesmo quando os participantes realizaram quantidades diferentes de questões. Cada taxa individual é calculada sobre as respostas que aquela pessoa efetivamente realizou. Depois, marque os slides, ajuste a ordem e apresente em tela cheia.</p>
         </div>
         <div className="chips">
           <button className="cta" disabled={!lista.length} onClick={iniciar}>Apresentar ({lista.length})</button>

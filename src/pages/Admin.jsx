@@ -66,6 +66,8 @@ function Painel({ sair }) {
 
   useEffect(() => { try { sessionStorage.setItem('realia_aba', aba); } catch { /* ignora */ } }, [aba]);
   const s = useMemo(() => (d ? analisar(d, { parciais }) : null), [d, parciais]);
+  // A apresentação usa sempre a amostra oficial: sessões finalizadas e não excluídas.
+  const sApresentacao = useMemo(() => (d ? analisar(d, { parciais: false }) : null), [d]);
 
   return (
     <div className="shell">
@@ -79,7 +81,7 @@ function Painel({ sair }) {
         {!d ? <p className="mut">Carregando…</p> : (<>
           {aba === 'resumo' && <Resumo s={s} atual={atual} parciais={parciais} setParciais={setParciais} />}
           {aba === 'graficos' && <Analises s={s} />}
-          {aba === 'apresentacao' && <Apresentacao s={s} />}
+          {aba === 'apresentacao' && <Apresentacao s={sApresentacao} />}
           {aba === 'revisao' && <Revisao d={d} recarregar={carregar} />}
           {aba === 'cadastro' && (<div className="dash"><div className="secao-topo"><h2>Cadastrar conteúdos</h2></div><Conteudos lista={d.conteudos} comparacoes={d.comparacoes || []} recarregar={carregar} /></div>)}
           {aba === 'dados' && <Dados d={d} s={s} recarregar={carregar} />}

@@ -70,10 +70,16 @@ export function analisar(d, opts = {}) {
   const todos = d.participantes || [];
   const respAll = d.respostas || [];
   const comResp = new Set(respAll.map((r) => r.participante_id));
-  const base = opts.parciais ? todos.filter((p) => p.finalizado || comResp.has(p.id)) : todos.filter((p) => p.finalizado);
+  const rc0 = (d.resp_comp || []);
+  // A modalidade de participação pode ter quantidades diferentes de questões.
+  // Não filtramos por protocolo: cada participante entra com todas as respostas
+  // válidas que realizou. Sessões não finalizadas e explicitamente excluídas ficam fora.
+  const base = opts.parciais
+    ? todos.filter((p) => (p.finalizado || comResp.has(p.id)) && p.excluir_analise !== true)
+    : todos.filter((p) => p.finalizado && p.excluir_analise !== true);
   const ids = new Set(base.map((p) => p.id));
   const resp = respAll.filter((r) => ids.has(r.participante_id));
-  const rc0 = (d.resp_comp || []).filter((r) => ids.has(r.participante_id));
+  const rcSelecionadas = rc0.filter((r) => ids.has(r.participante_id));
 
   const mapa = new Map();
   resp.forEach((r) => {
@@ -84,28 +90,34 @@ export function analisar(d, opts = {}) {
     mapa.set(r.participante_id, o);
   });
   const mc = new Map();
-  rc0.forEach((r) => {
+  rcSelecionadas.forEach((r) => {
     const o = mc.get(r.participante_id) || { n: 0, ex: 0, it: 0, ni: 0, t: {}, c: {} };
     o.n++; if (r.acertou) o.ex++; o.it += r.acertos_itens; o.ni += r.n_itens;
     const t = o.t[r.tipo] || (o.t[r.tipo] = { n: 0, ex: 0 }); t.n++; if (r.acertou) t.ex++;
     const c = o.c[r.n_reais_ia] || (o.c[r.n_reais_ia] = { n: 0, ex: 0 }); c.n++; if (r.acertou) c.ex++;
     mc.set(r.participante_id, o);
   });
-  const compDe = (o) => ({ n: o.n, exato: (100 * o.ex) / o.n, item: (100 * o.it) / o.ni, t: o.t, c: o.c });
+  const compDe = (o) => ({ n: o.n, exatas: o.ex, exato: (100 * o.ex) / o.n, item: (100 * o.it) / o.ni, t: o.t, c: o.c });
 
   const linhas = base.filter((p) => mapa.has(p.id)).map((p) => {
     const o = mapa.get(p.id);
-    return { ...p, n: o.n, acertos: o.a, pct: (100 * o.a) / o.n, tipos: o.t, comp: mc.has(p.id) ? compDe(mc.get(p.id)) : null };
+    const compPessoa = mc.has(p.id) ? compDe(mc.get(p.id)) : null;
+    const totalDecisoes = o.n + (compPessoa?.n || 0);
+    const acertosTotais = o.a + (compPessoa?.exatas || 0);
+    return { ...p, n: o.n, acertos: o.a, pct: (100 * o.a) / o.n, pctTotal: totalDecisoes ? (100 * acertosTotais) / totalDecisoes : null, tipos: o.t, comp: compPessoa };
   });
   const idsL = new Set(linhas.map((l) => l.id));
-  const rc = rc0.filter((r) => idsL.has(r.participante_id));
+  const rc = rcSelecionadas.filter((r) => idsL.has(r.participante_id));
   const pcts = linhas.map((l) => l.pct);
+  const respostasAcertadas = resp.filter((r) => r.acertou).length;
+  const geralPool = { respostas: resp.length, acertos: respostasAcertadas, pct: pc(respostasAcertadas, resp.length) };
 
   const vm = new Map();
   linhas.forEach((l) => vm.set(l.n, (vm.get(l.n) || 0) + 1));
   const versoes = [...vm].map(([itens, pessoas]) => ({ itens, pessoas })).sort((a, b) => a.itens - b.itens);
   const totais = {
     participantes: linhas.length, respostas: resp.length, rodadas: rc.length, cadastrados: todos.length,
+    finalizados: todos.filter((p) => p.finalizado).length, incompletos: todos.filter((p) => !p.finalizado).length,
     parciaisFora: opts.parciais ? 0 : todos.filter((p) => !p.finalizado && comResp.has(p.id)).length,
   };
 
@@ -130,7 +142,12 @@ export function analisar(d, opts = {}) {
   const hist = Array.from({ length: 10 }, (_, i) => ({ nome: `${i * 10}–${i * 10 + 10}`, n: 0 }));
   pcts.forEach((p) => { hist[Math.min(9, Math.floor(p / 10))].n++; });
 
-  const calib = linhas.filter((l) => l.estimativa_acertos != null).map((l) => ({ x: l.pct, y: (100 * l.estimativa_acertos) / l.n }));
+  // A estimativa de desempenho é comparada à taxa individual de identificação.
+  // O denominador usa a quantidade de questões individuais respondidas por cada pessoa.
+  const calib = linhas.filter((l) => l.estimativa_acertos != null).map((l) => ({
+    x: l.pct,
+    y: (100 * l.estimativa_acertos) / (Number(l.estimativa_base_decisoes) || l.n),
+  }));
   const dif = calib.map((p) => p.y - p.x);
 
   const cont = new Map((d.conteudos || []).map((x) => [x.id, x]));
@@ -141,8 +158,13 @@ export function analisar(d, opts = {}) {
 
   const cl = linhas.filter((l) => l.comp);
   const pool = (R, nome) => { const a = R.filter((x) => x.acertou).length; return { nome, rotulo: nome, respostas: R.length, acertos: a, pct: pc(a, R.length), pessoas: new Set(R.map((x) => x.participante_id)).size }; };
+  const paresCorretos = rc.filter((r) => r.acertou).length;
+  const pecasCorretas = rc.reduce((s, r) => s + (Number(r.acertos_itens) || 0), 0);
+  const pecasRespondidas = rc.reduce((s, r) => s + (Number(r.n_itens) || 0), 0);
   const comp = {
     n: cl.length, nResp: rc.length,
+    exatoPool: { respostas: rc.length, acertos: paresCorretos, pct: pc(paresCorretos, rc.length) },
+    itemPool: { respostas: pecasRespondidas, acertos: pecasCorretas, pct: pc(pecasCorretas, pecasRespondidas) },
     exato: resumo(cl.map((l) => l.comp.exato), 25),
     item: resumo(cl.map((l) => l.comp.item), 50),
     dif: resumo(cl.map((l) => l.comp.item - l.pct), 0),
@@ -164,7 +186,7 @@ export function analisar(d, opts = {}) {
   };
 
   return {
-    totais, versoes, linhas, comp, geral: resumo(pcts), porTipo, tipoPool, conf: c, balanceada, hist, calib, vies: resumo(dif, 0), itens,
+    totais, versoes, linhas, comp, geral: resumo(pcts), geralPool, porTipo, tipoPool, conf: c, balanceada, hist, calib, vies: resumo(dif, 0), itens,
     porFaixa: grupo(linhas, 'faixa_etaria', FAIXAS),
     porEsc: grupo(linhas, 'escolaridade', ESCOLARIDADES),
     porFreq: grupo(linhas, 'freq_ia', FREQ),

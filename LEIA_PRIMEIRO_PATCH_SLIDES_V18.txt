@@ -1,0 +1,51 @@
+PATCH SLIDES REAL OU IA — V18
+Correção metodológica: amostra integrada, sem separar participantes por modalidade
+
+O QUE ESTE PATCH CORRIGE
+- Remove o filtro que exigia exatamente 20 respostas individuais + 20 comparações.
+- Remove a separação artificial entre modalidade completa e reduzida na tela de apresentação.
+- Inclui todas as sessões finalizadas e não marcadas para exclusão da análise.
+- Cada participante mantém sua própria taxa individual (acertos individuais / respostas individuais válidas).
+- Cada participante mantém sua taxa de comparações (pares totalmente corretos / comparações válidas).
+- A taxa geral individual é calculada de forma ponderada: total de acertos / total de respostas individuais válidas.
+- A taxa geral de pares totalmente corretos é: pares totalmente corretos / total de comparações válidas.
+- Também apresenta a taxa de acerto por peça dentro das comparações, separada da taxa de pares totalmente corretos.
+- Mantém análises demográficas e de perfil no nível do participante, vinculando respostas ao mesmo participante_id.
+- A apresentação sempre usa sessões finalizadas, mesmo que o painel geral esteja configurado para exibir parciais.
+
+VALIDAÇÃO COM OS CSVs FORNECIDOS
+- Registros cadastrados: 167
+- Sessões finalizadas: 109
+- Sessões não finalizadas: 58
+- Participantes incluídos: 109 (todas as sessões finalizadas e não excluídas)
+- Respostas individuais válidas: 1.830
+- Acertos individuais: 1.106
+- Taxa geral individual ponderada: 60,44%
+- Comparações válidas: 1.450
+- Pares totalmente corretos: 527
+- Taxa de pares totalmente corretos: 36,34%
+- Peças classificadas nas comparações: 2.900
+- Peças corretamente classificadas nas comparações: 1.692
+- Taxa de acerto por peça nas comparações: 58,34%
+
+A base contém 66 sessões marcadas como reduzidas, 38 completas e 5 sessões finalizadas antigas sem modo_teste preenchido. Nenhuma delas é descartada apenas pela quantidade de questões respondidas. O critério aplicado é finalizado = true e excluir_analise != true.
+
+ARQUIVOS SUBSTITUÍDOS
+- src/lib/stats.js
+- src/pages/Admin.jsx
+- src/pages/Apresentacao.jsx
+- src/slides/slides.jsx
+
+INSTALAÇÃO
+1. Faça backup do projeto atual.
+2. Extraia o ZIP na raiz do repositório, mantendo a estrutura src/.
+3. Substitua os quatro arquivos indicados.
+4. Execute npm run build.
+5. Abra Administração > Apresentação e confira os totais exibidos.
+
+Não há alterações de banco de dados e não é necessário executar SQL.
+
+VALIDAÇÃO TÉCNICA
+- Sintaxe JavaScript de stats.js verificada com node --check.
+- Sintaxe JSX dos três arquivos React verificada com o parser/transpilador TypeScript.
+- O build completo do Vite deve ser executado no ambiente do projeto, com as dependências instaladas.
