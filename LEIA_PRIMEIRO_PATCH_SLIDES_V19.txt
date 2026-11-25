@@ -1,0 +1,35 @@
+PATCH SLIDES REAL OU IA — V19
+Redesign da apresentação com foco em Matemática, Estatística e Probabilidade + reprodução dos materiais analisados.
+
+O QUE MUDA
+- Reorganiza a ordem inicial dos slides para contar a pesquisa em sequência lógica.
+- Coloca os conteúdos matemáticos dentro do fluxo principal: média, mediana, amplitude, variância amostral, desvio padrão, erro padrão, intervalo de confiança de 95%, quartis e intervalo interquartil.
+- Inclui uma explicação visual da referência probabilística: 50% para uma classificação binária e 25% para acertar as duas peças de um par, sob escolhas independentes e equilibradas.
+- Cria slides de materiais mais difíceis e mais reconhecidos, com um exemplo real por modalidade: imagem, vídeo, texto e áudio.
+- Reproduz a mídia original quando há URL (imagem, vídeo e áudio) e o texto original quando a modalidade é texto.
+- Os exemplos por conteúdo exigem pelo menos cinco avaliações, para reduzir destaque de resultados baseados em pouquíssimas respostas.
+- Preserva a análise integrada de todas as sessões finalizadas e não excluídas do patch V18.
+- Atualiza a chave de preferências da apresentação para que a nova ordem recomendada seja carregada sem herdar a ordenação antiga salva no navegador.
+
+ESTATÍSTICAS
+O erro padrão é calculado como s/√n. O intervalo apresentado usa aproximação normal de 95% (média ± 1,96 × erro padrão). A apresentação informa que a amostra é voluntária e que o intervalo não corrige viés de seleção nem torna a amostra representativa da população.
+
+ARQUIVOS INCLUÍDOS
+- src/lib/stats.js
+- src/pages/Admin.jsx
+- src/pages/Apresentacao.jsx
+- src/slides/slides.jsx
+- src/slides/apresentacao.css
+
+INSTALAÇÃO
+1. Faça backup do projeto atual.
+2. Extraia o ZIP na raiz do repositório, mantendo a estrutura src/.
+3. Substitua os arquivos indicados.
+4. Execute npm run build.
+5. Entre em Administração > Apresentação e use “Só os recomendados” para carregar a sequência padrão.
+6. Confira se as URLs de mídia continuam públicas/acessíveis no Storage. O patch não altera os arquivos armazenados.
+
+VALIDAÇÃO
+- Sintaxe JSX/JavaScript verificada com o parser/transpilador TypeScript.
+- O build Vite não foi executado neste ambiente porque as dependências do projeto não estão instaladas aqui.
+- Não há alteração de banco de dados e não é necessário executar SQL.

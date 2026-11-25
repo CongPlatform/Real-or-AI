@@ -1,0 +1,29 @@
+PATCH — REDESIGN DOS GRÁFICOS E ORDEM DO ROTEIRO (REAL OU IA?)
+
+Arquivos:
+- src/slides/slides.jsx
+- src/slides/apresentacao.css
+- src/pages/Apresentacao.jsx
+
+O que foi alterado:
+1. Slide "Distribuição e dispersão" (página 19): combina histograma das notas individuais com resumo de cinco números/boxplot. Agora o histograma explica a concentração e o boxplot resume a distribuição.
+2. Mediana: série ordenada com destaque visual para a posição central.
+3. Amplitude: escala com mínimo, máximo e distância entre os extremos.
+4. Variância: histograma da distribuição das notas, média e explicação dos desvios quadráticos.
+5. Desvio padrão: faixa de média ± um desvio padrão, com a ressalva de que não contém necessariamente todos os resultados.
+6. Quartis: quatro segmentos proporcionais, Q1, mediana, Q3 e intervalo interquartil.
+7. Erro padrão: incluído como slide de matemática, com fórmula EP = s/√n e intervalo aproximado de 95%, deixando explícito que isso não corrige o viés da amostra voluntária.
+8. Ordem inicial reorganizada para acompanhar o roteiro de fala: abertura/método, amostra, resultados individuais, comparações, reconhecimento IA × humano, perfis, confiança, tempo e materiais, estatística descritiva e conclusão.
+9. A preferência local da apresentação foi versionada para que a ordem antiga salva no navegador não sobrescreva a nova sequência.
+
+Como aplicar:
+1. Faça uma cópia de segurança do projeto.
+2. Extraia este ZIP na raiz do projeto (a pasta que contém package.json).
+3. Permita substituir os três arquivos em src/.
+4. Publique o frontend novamente.
+5. Abra Admin > Apresentação e clique em "Só os recomendados". A nova sequência será carregada.
+6. Se a apresentação já estiver aberta, recarregue a página com Ctrl + Shift + R.
+
+Validação:
+- Os dois arquivos JSX foram verificados quanto à sintaxe.
+- O build completo do Vite não foi executado neste ambiente, pois o ZIP não inclui node_modules.

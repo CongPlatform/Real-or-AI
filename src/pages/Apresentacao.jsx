@@ -2,16 +2,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SLIDES, Slide } from '../slides/slides';
 
-const LS = 'realia_slides_amostra_integrada_v5';
-const IDS = SLIDES.map((d) => d.id);
+const LS = 'realia_roteiro_ordenado_v6';
+const ROTEIRO = [
+  'capa','metodo','amostra','geral','mat_media','mat_mediana','tipo',
+  'comparacao','comparacao_formatos','cenarios','ia_real',
+  'idade','esc','freq','nivel_confianca','confianca',
+  'tempo','enganosos','dispersao','mat_amplitude','mat_variancia',
+  'mat_desvio','mat_erro_padrao','mat_quartis','conclusao',
+];
+const IDS = [...ROTEIRO, ...SLIDES.map((d) => d.id).filter((id) => !ROTEIRO.includes(id))];
 
 function inicial() {
   let x = null;
   try { x = JSON.parse(localStorage.getItem(LS)); } catch { /* ignora */ }
   const ord = (x?.ordem || []).filter((i) => IDS.includes(i));
   return {
-    ordem: [...ord, ...IDS.filter((i) => !ord.includes(i))],
-    marcados: x?.marcados ? [...new Set([...x.marcados.filter((i) => IDS.includes(i)), ...SLIDES.filter((d) => d.padrao && !x.marcados.includes(d.id)).map((d) => d.id)])] : SLIDES.filter((d) => d.padrao).map((d) => d.id),
+    ordem: x?.ordem?.length ? [...ord, ...IDS.filter((i) => !ord.includes(i))] : [...IDS],
+    marcados: x?.marcados ? [...new Set([...x.marcados.filter((i) => IDS.includes(i)), ...ROTEIRO.filter((id) => SLIDES.some((d) => d.id === id && d.padrao) && !x.marcados.includes(id))])] : ROTEIRO.filter((id) => SLIDES.some((d) => d.id === id && d.padrao)),
   };
 }
 
@@ -109,7 +116,7 @@ export default function Apresentacao({ s }) {
         <div className="chips">
           <button className="cta" disabled={!lista.length} onClick={iniciar}>Apresentar ({lista.length})</button>
           <button className="chip" disabled={!lista.length} onClick={() => setImp(true)}>Salvar em PDF</button>
-          <button className="chip" onClick={() => setEst((e) => ({ ...e, marcados: SLIDES.filter((d) => d.padrao).map((d) => d.id) }))}>Só os recomendados</button>
+          <button className="chip" onClick={() => setEst((e) => ({ ...e, marcados: ROTEIRO.filter((id) => SLIDES.some((d) => d.id === id && d.padrao)) }))}>Só os recomendados</button>
           <button className="chip" onClick={() => setEst((e) => ({ ...e, marcados: IDS }))}>Todos</button>
         </div>
       </div>

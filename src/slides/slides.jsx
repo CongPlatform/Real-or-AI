@@ -66,6 +66,74 @@ function BoxPlot({stats}) {
   const pos=v=>`${Math.max(0,Math.min(100,v))}%`;
   return <div className="deck-boxplot"><div className="deck-boxplot-track"><div className="deck-boxplot-whisker" style={{left:pos(stats.min),width:pos(stats.max-stats.min)}}/><div className="deck-boxplot-box" style={{left:pos(stats.q1),width:pos(stats.q3-stats.q1)}}/><i className="deck-boxplot-median" style={{left:pos(stats.mediana)}}/><i className="deck-boxplot-mean" style={{left:pos(stats.media)}}/></div><div className="deck-boxplot-scale"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><div className="deck-boxplot-legend"><span><i className="median"/>Mediana {pct(stats.mediana)}</span><span><i className="mean"/>Média {pct(stats.media)}</span></div><div className="deck-boxplot-values"><div><small>Mínimo</small><b>{pct(stats.min)}</b></div><div><small>Q1</small><b>{pct(stats.q1)}</b></div><div><small>Q3</small><b>{pct(stats.q3)}</b></div><div><small>Máximo</small><b>{pct(stats.max)}</b></div></div></div>;
 }
+
+function EscalaNotas({min,max,marcadores=[],faixas=[]}) {
+  const lo=Math.max(0,Math.min(100,min)), hi=Math.max(lo+0.01,Math.min(100,max));
+  const x=v=>`${Math.max(0,Math.min(100,v))}%`;
+  return <div className="deck-scale-visual">
+    <div className="deck-scale-track">
+      {faixas.map((f,i)=><div key={i} className={`deck-scale-band ${f.classe||''}`} style={{left:x(f.ini),width:`${Math.max(0,f.fim-f.ini)}%`}}/>)}
+      {marcadores.map((m,i)=><div key={i} className={`deck-scale-marker ${m.classe||''}`} style={{left:x(m.valor)}}><i/><b>{m.rotulo}</b><small>{pct(m.valor)}</small></div>)}
+    </div>
+    <div className="deck-scale-axis"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+  </div>;
+}
+function MedianaVisual({stats,linhas=[]}) {
+  const xs=linhas.map(x=>x.pct).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!xs.length)return <Vazio/>;
+  const mid=Math.floor(xs.length/2), val=xs[mid];
+  const left=xs.slice(0,mid), right=xs.slice(mid+1);
+  return <div className="deck-median-visual">
+    <div className="deck-median-summary"><div><b>{left.length}</b><span>abaixo</span></div><div className="central"><b>{pct(val)}</b><span>posição central · {mid+1}ª de {xs.length}</span></div><div><b>{right.length}</b><span>acima</span></div></div>
+    <div className="deck-median-dots" aria-label="Distribuição ordenada das notas">{xs.map((v,i)=><i key={i} className={i===mid?'is-median':''} title={`${i+1}ª nota: ${pct(v)}`} style={{left:`${v}%`}}/>)}</div>
+    <div className="deck-median-scale"><span>0%</span><span>50%</span><span>100%</span></div>
+    <p>Com as notas em ordem crescente, a mediana é o valor que ocupa a posição central.</p>
+  </div>;
+}
+function AmplitudeVisual({stats}) {
+  return <div className="deck-amplitude-visual">
+    <div className="deck-amplitude-number"><span>Distância entre os extremos</span><b>{fmt(stats.amplitude,2)} <small>p.p.</small></b></div>
+    <EscalaNotas min={stats.min} max={stats.max} faixas={[{ini:stats.min,fim:stats.max,classe:'range'}]} marcadores={[{valor:stats.min,rotulo:'Mínimo',classe:'low'},{valor:stats.max,rotulo:'Máximo',classe:'high'}]}/>
+    <div className="deck-amplitude-equation"><b>{pct(stats.max)}</b><span>−</span><b>{pct(stats.min)}</b><span>=</span><strong>{fmt(stats.amplitude,2)} p.p.</strong></div>
+    <p>A amplitude considera somente o menor e o maior resultado.</p>
+  </div>;
+}
+function VarianciaVisual({linhas,media,variancia}) {
+  const xs=linhas.map(x=>x.pct).filter(Number.isFinite);
+  const buckets=Array.from({length:10},(_,i)=>({nome:`${i*10}–${i*10+10}`,n:xs.filter(v=>v>=i*10&&(i===9?v<=100:v<(i+1)*10)).length}));
+  return <div className="deck-variance-visual">
+    <div className="deck-variance-head"><span>Média do grupo</span><b>{pct(media)}</b><small>cada barra mostra quantos participantes ficaram em cada faixa</small></div>
+    <div className="deck-variance-bars">{buckets.map((b,i)=><div key={b.nome}><span>{b.n}</span><i style={{height:`${Math.max(3,100*b.n/Math.max(1,...buckets.map(x=>x.n)))}%`}}/><small>{b.nome}</small></div>)}</div>
+    <div className="deck-variance-deviation"><span>Distância de cada nota até a média</span><strong>desvios² → média dos quadrados = {fmt(variancia,2)} p.p.²</strong></div>
+    <p>A variância aumenta quando os resultados ficam mais afastados da média. Como os desvios são elevados ao quadrado, a unidade também fica ao quadrado.</p>
+  </div>;
+}
+function DesvioVisual({stats}) {
+  const lo=Math.max(0,stats.media-stats.desvio),hi=Math.min(100,stats.media+stats.desvio);
+  return <div className="deck-sd-visual">
+    <div className="deck-sd-head"><span>Faixa de um desvio padrão ao redor da média</span><b>±{fmt(stats.desvio,2)} p.p.</b></div>
+    <EscalaNotas min={lo} max={hi} faixas={[{ini:lo,fim:hi,classe:'sd-band'}]} marcadores={[{valor:lo,rotulo:'Média − s',classe:'low'},{valor:stats.media,rotulo:'Média',classe:'mean'},{valor:hi,rotulo:'Média + s',classe:'high'}]}/>
+    <div className="deck-sd-equation"><span>{pct(stats.media)} − {fmt(stats.desvio,2)} p.p.</span><b>{pct(lo)} a {pct(hi)}</b><span>{pct(stats.media)} + {fmt(stats.desvio,2)} p.p.</span></div>
+    <p>O desvio padrão expressa a dispersão na mesma unidade das notas. A faixa é uma referência de distância, não uma garantia de que todos os resultados estejam nela.</p>
+  </div>;
+}
+function QuartisVisual({stats}) {
+  const vals=[stats.min,stats.q1,stats.mediana,stats.q3,stats.max];
+  const labels=['Mínimo','Q1 · 25%','Mediana · 50%','Q3 · 75%','Máximo'];
+  return <div className="deck-quartile-visual">
+    <div className="deck-quartile-track">
+      <div className="q-whisker" style={{left:`${vals[0]}%`,width:`${vals[4]-vals[0]}%`}}/>
+      <div className="q-segment q-a" style={{left:`${vals[0]}%`,width:`${vals[1]-vals[0]}%`}}/>
+      <div className="q-segment q-b" style={{left:`${vals[1]}%`,width:`${vals[2]-vals[1]}%`}}/>
+      <div className="q-segment q-c" style={{left:`${vals[2]}%`,width:`${vals[3]-vals[2]}%`}}/>
+      <div className="q-segment q-d" style={{left:`${vals[3]}%`,width:`${vals[4]-vals[3]}%`}}/>
+    </div>
+    <div className="deck-quartile-values">{vals.map((v,i)=><div key={labels[i]}><small>{labels[i]}</small><b>{pct(v)}</b></div>)}</div>
+    <div className="deck-iqr-callout"><span>50% central das notas</span><b>{pct(stats.q1)} — {pct(stats.q3)}</b><strong>IIQ = {fmt(stats.iqr,2)} p.p.</strong></div>
+    <p>Os quartis dividem a série ordenada em quatro partes. O intervalo interquartil contém a metade central dos resultados.</p>
+  </div>;
+}
+
 function Perfil(s,campo,ordem) {
   const rows=Array.isArray(s.linhas)?s.linhas:[];
   const labels=[...ordem,...new Set(rows.map(x=>String(x[campo]||'Não informado')).filter(v=>!ordem.includes(v)))];
@@ -137,7 +205,7 @@ export const SLIDES = [
 
   {id:'enganosos',nome:'Materiais mais difíceis',padrao:true,ok:s=>s.itens.length>=2,render:s=>{const sorted=[...s.itens].sort((a,b)=>a.pct-b.pct),k=Math.min(4,Math.floor(sorted.length/2));return <><Topo t="Quais materiais mais enganaram?" sub="Ranking de conteúdos da etapa individual com pelo menos cinco avaliações."/><div className="deck-content two-col"><div className="deck-rank"><h3>Mais difíceis</h3>{sorted.slice(0,k).map((x,i)=><div className="deck-rank-row" key={x.id}><b>0{i+1}</b><span>{x.tipo==='imagem'?'Imagem':TIPOS[x.tipo]||x.tipo} · {x.eh_ia?'Origem IA':'Origem humana'}<small>{x.n} avaliações</small></span><strong>{pct(x.pct)}</strong></div>)}</div><div className="deck-rank"><h3>Mais reconhecidos</h3>{sorted.slice(-k).reverse().map((x,i)=><div className="deck-rank-row" key={x.id}><b>0{i+1}</b><span>{TIPOS[x.tipo]||x.tipo} · {x.eh_ia?'Origem IA':'Origem humana'}<small>{x.n} avaliações</small></span><strong>{pct(x.pct)}</strong></div>)}</div></div></>;}},
 
-  {id:'dispersao',nome:'Dispersão dos resultados',padrao:true,ok:s=>s.geral.n>2,render:s=><><Topo t="A média não conta a história inteira" sub="A distribuição mostra o quanto os resultados individuais variam."/><div className="deck-content two-col"><div className="deck-stat-stack"><KPI valor={`${fmt(s.geral.desvio,1)} p.p.`} label="desvio padrão" accent/><KPI valor={`${fmt(s.geral.q1,1)}% – ${fmt(s.geral.q3,1)}%`} label="50% central das notas"/><KPI valor={`${fmt(s.geral.min,0)}% – ${fmt(s.geral.max,0)}%`} label="extremos observados"/></div><Painel><BoxPlot stats={s.geral}/><div className="deck-chart-caption">A caixa contém a metade central dos resultados; a linha indica a mediana.</div></Painel></div></>},
+  {id:'dispersao',nome:'Distribuição e dispersão',padrao:true,ok:s=>s.geral.n>2,render:s=><><Topo t="A média não conta a história inteira" sub="A distribuição mostra como as notas individuais se espalham — não apenas onde está o centro."/><div className="deck-content two-col"><div className="deck-stat-stack"><KPI valor={`${fmt(s.geral.desvio,1)} p.p.`} label="desvio padrão" accent/><KPI valor={`${fmt(s.geral.q1,1)}% – ${fmt(s.geral.q3,1)}%`} label="50% central das notas"/><KPI valor={`${fmt(s.geral.min,1)}% – ${fmt(s.geral.max,1)}%`} label="menor e maior nota"/><Insight titulo="Duas leituras complementares">O histograma mostra onde as notas se concentram. O resumo de cinco números mostra extremos, quartis e mediana.</Insight></div><div className="deck-overview-visual"><Painel><h3>Frequência das notas</h3><div className="deck-overview-hist"><Histograma dados={dadosHist(s)}/></div></Painel><Painel><h3>Resumo da distribuição</h3><BoxPlot stats={s.geral}/></Painel></div></div></>},
 
   {id:'doque',nome:'Análise dos resultados',padrao:true,ok:s=>s.geral.n>1,render:s=><><Topo t="O que os resultados sugerem?" sub="Síntese interpretativa: desempenho, diferenças e limites da pesquisa."/><div className="deck-analysis-grid">{conclusoes(s).slice(0,6).map((x,i)=><div key={i}><span>0{i+1}</span><p>{x}</p></div>)}</div></>},
   {id:'conclusao',nome:'Conclusão',padrao:true,ok:s=>s.geral.n>1,render:s=><div className="deck-ending"><span>EM RESUMO</span><h2>Reconhecer IA não é tão simples quanto parece.</h2><p>Os resultados mostram padrões nesta amostra — e também revelam onde ainda precisamos investigar mais.</p><div><b>{pct(s.geralPool?.pct ?? s.geral.media)}</b><small>acerto geral</small><i/><b>{s.totais.participantes}</b><small>participantes</small></div><small className="deck-caveat">Amostra voluntária: os resultados descrevem os participantes e materiais avaliados, não toda a população.</small></div>},
@@ -145,12 +213,18 @@ export const SLIDES = [
   {id:'usos',nome:'Para que usam IA',padrao:false,ok:s=>s.usos.some(x=>x.n>0),render:s=><><Topo t="Para que as pessoas usam IA?" sub="Era possível selecionar mais de uma finalidade."/><div className="deck-content"><Painel><BarrasPerfil dados={s.usos.map(x=>({nome:x.nome,media:x.n,n:x.n}))} dataKey="media" domain={[0,'auto']} cor={C.amber} formatPercent={false}/></Painel></div></>},
   {id:'tabela',nome:'Tabela de estatísticas',padrao:false,ok:s=>s.geral.n>1,render:s=><><Topo t="Resumo numérico" sub="Estatísticas descritivas das notas individuais."/><div className="deck-content"><table className="deck-table"><thead><tr><th>Grupo</th><th>n</th><th>Média</th><th>Mediana</th><th>Desvio</th><th>Q1–Q3</th><th>Amplitude</th></tr></thead><tbody>{[{nome:'Geral',...s.geral},...s.porTipo].map(x=><tr key={x.nome}><td>{x.nome}</td><td>{fmt(x.n,0)}</td><td>{pct(x.media)}</td><td>{pct(x.mediana)}</td><td>{fmt(x.desvio,1)}</td><td>{pct(x.q1)}–{pct(x.q3)}</td><td>{fmt(x.amplitude,1)} p.p.</td></tr>)}</tbody></table></div></>},
 
-  {id:'mat_media',nome:'Matemática · Média',padrao:false,ok:s=>s.linhas.length>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite),n=xs.length,sum=xs.reduce((a,b)=>a+b,0),m=sum/n;return <Matematica titulo="Média aritmética" definicao="Soma dos resultados dividida pela quantidade de participantes." formula="x̄ = Σxᵢ ÷ n" aplicacao={`${fmt(sum,2)} ÷ ${n} = ${fmt(m,2)}%`} resultado={pct(m)} leitura="A média resume o desempenho do grupo, dando o mesmo peso à nota de cada participante." base={`n = ${n} notas válidas.`} visual={<><div className="deck-math-big">{pct(m)}</div><Histograma dados={dadosHist(s)}/></>}/>;}},
-  {id:'mat_mediana',nome:'Matemática · Mediana',padrao:false,ok:s=>s.linhas.length>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite).sort((a,b)=>a-b),n=xs.length,a=xs[Math.floor((n-1)/2)],b=xs[Math.floor(n/2)],m=(a+b)/2,app=n%2?`x(${(n+1)/2}) = ${fmt(a,2)}%`:`(${fmt(a,2)} + ${fmt(b,2)}) ÷ 2 = ${fmt(m,2)}%`;return <Matematica titulo="Mediana" definicao="Valor central após ordenar as notas do menor para o maior." formula={n%2?'Md = x((n + 1) ÷ 2)':'Md = [x(n ÷ 2) + x(n ÷ 2 + 1)] ÷ 2'} aplicacao={app} resultado={pct(m)} leitura="Metade das notas fica de cada lado da mediana. Ela sofre menos influência de valores extremos que a média." base={`Série ordenada com n = ${n}.`} visual={<><BoxPlot stats={s.geral}/><div className="deck-math-big">{pct(m)}</div></>}/>;}},
-  {id:'mat_amplitude',nome:'Matemática · Amplitude',padrao:false,ok:s=>s.geral.n>1,render:s=><Matematica titulo="Amplitude total" definicao="Diferença entre a maior e a menor nota observada." formula="A = valor máximo − valor mínimo" aplicacao={`${fmt(s.geral.max,2)} − ${fmt(s.geral.min,2)} = ${fmt(s.geral.amplitude,2)} p.p.`} resultado={`${fmt(s.geral.amplitude,2)} p.p.`} leitura="A amplitude mostra a extensão total dos resultados, mas depende apenas dos dois extremos." base={`Base: ${s.geral.n} participantes.`} visual={<BoxPlot stats={s.geral}/>}/>},
-  {id:'mat_variancia',nome:'Matemática · Variância',padrao:false,ok:s=>s.geral.n>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite),n=xs.length,m=s.geral.media,sum=xs.reduce((a,x)=>a+(x-m)**2,0),v=sum/(n-1);return <Matematica titulo="Variância amostral" definicao="Média dos quadrados dos desvios em relação à média, usando n − 1." formula="s² = Σ(xᵢ − x̄)² ÷ (n − 1)" aplicacao={`${fmt(sum,2)} ÷ (${n} − 1) = ${fmt(v,2)} p.p.²`} resultado={`${fmt(v,2)} p.p.²`} leitura="Quanto maior a variância, mais espalhadas estão as notas. A unidade fica ao quadrado." base={`Variância amostral · n = ${n}.`} visual={<><BoxPlot stats={s.geral}/><div className="deck-math-big">s² = {fmt(v,1)}</div></>}/>;}},
-  {id:'mat_desvio',nome:'Matemática · Desvio padrão',padrao:false,ok:s=>s.geral.n>1,render:s=><Matematica titulo="Desvio padrão" definicao="Raiz quadrada da variância; mede a dispersão na mesma unidade das notas." formula="s = √s²" aplicacao={`s = √${fmt(s.geral.variancia,2)} = ${fmt(s.geral.desvio,2)} p.p.`} resultado={`${fmt(s.geral.desvio,2)} p.p.`} leitura={`As notas se afastam da média (${pct(s.geral.media)}) em cerca de ${fmt(s.geral.desvio,1)} pontos percentuais, como medida de dispersão.`} base={`Base: ${s.geral.n} participantes.`} visual={<><div className="deck-math-big">±{fmt(s.geral.desvio,1)} p.p.</div><BoxPlot stats={s.geral}/></>}/>},
-  {id:'mat_quartis',nome:'Matemática · Quartis',padrao:false,ok:s=>s.geral.n>3,render:s=><Matematica titulo="Quartis e intervalo interquartil" definicao="Q1 marca 25% da distribuição; Q3 marca 75%. Entre eles ficam os 50% centrais." formula="IIQ = Q3 − Q1" aplicacao={`${fmt(s.geral.q3,2)} − ${fmt(s.geral.q1,2)} = ${fmt(s.geral.iqr,2)} p.p.`} resultado={`${fmt(s.geral.iqr,2)} p.p.`} leitura={`A metade central das notas está entre ${pct(s.geral.q1)} e ${pct(s.geral.q3)}.`} base={`Quartis por interpolação · n = ${s.geral.n}.`} visual={<BoxPlot stats={s.geral}/>}/>},
-];
+  {id:'mat_media',nome:'Matemática · Média',padrao:true,ok:s=>s.linhas.length>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite),n=xs.length,sum=xs.reduce((a,b)=>a+b,0),m=sum/n;return <Matematica titulo="Média aritmética" definicao="Soma dos resultados dividida pela quantidade de participantes." formula="x̄ = Σxᵢ ÷ n" aplicacao={`${fmt(sum,2)} ÷ ${n} = ${fmt(m,2)}%`} resultado={pct(m)} leitura="A média resume o desempenho do grupo, dando o mesmo peso à nota de cada participante." base={`n = ${n} notas válidas.`} visual={<><div className="deck-math-big">{pct(m)}</div><Histograma dados={dadosHist(s)}/></>}/>;}},
+  {id:'mat_mediana',nome:'Matemática · Mediana',padrao:true,ok:s=>s.linhas.length>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite).sort((a,b)=>a-b),n=xs.length,a=xs[Math.floor((n-1)/2)],b=xs[Math.floor(n/2)],m=(a+b)/2,app=n%2?`x(${(n+1)/2}) = ${fmt(a,2)}%`:`(${fmt(a,2)} + ${fmt(b,2)}) ÷ 2 = ${fmt(m,2)}%`;return <Matematica titulo="Mediana" definicao="Valor central depois de ordenar as notas da menor para a maior." formula={n%2?'Md = x((n + 1) ÷ 2)':'Md = [x(n ÷ 2) + x(n ÷ 2 + 1)] ÷ 2'} aplicacao={app} resultado={pct(m)} leitura="A mediana divide a série ordenada: metade das observações fica antes dela e metade depois. É menos sensível a valores extremos que a média." base={`Série ordenada · n = ${n}.`} visual={<MedianaVisual linhas={s.linhas} stats={s.geral}/>}/>;}},
+
+    {id:'mat_amplitude',nome:'Matemática · Amplitude',padrao:true,ok:s=>s.geral.n>1,render:s=><Matematica titulo="Amplitude total" definicao="Distância entre o maior e o menor resultado observado." formula="A = máximo − mínimo" aplicacao={`${fmt(s.geral.max,2)} − ${fmt(s.geral.min,2)} = ${fmt(s.geral.amplitude,2)} p.p.`} resultado={`${fmt(s.geral.amplitude,2)} p.p.`} leitura="A amplitude mostra a extensão total dos resultados, mas depende apenas dos dois extremos." base={`Base: ${s.geral.n} participantes.`} visual={<AmplitudeVisual stats={s.geral}/>}/>},
+
+    {id:'mat_variancia',nome:'Matemática · Variância',padrao:true,ok:s=>s.geral.n>1,render:s=>{const xs=s.linhas.map(x=>x.pct).filter(Number.isFinite),n=xs.length,m=s.geral.media,sum=xs.reduce((a,x)=>a+(x-m)**2,0),v=sum/(n-1);return <Matematica titulo="Variância amostral" definicao="Média dos quadrados das diferenças entre cada nota e a média, usando n − 1." formula="s² = Σ(xᵢ − x̄)² ÷ (n − 1)" aplicacao={`${fmt(sum,2)} ÷ (${n} − 1) = ${fmt(v,2)} p.p.²`} resultado={`${fmt(v,2)} p.p.²`} leitura="Quanto maior a variância, mais dispersos estão os resultados em torno da média. A unidade fica ao quadrado." base={`Variância amostral · n = ${n}.`} visual={<VarianciaVisual linhas={s.linhas} media={m} variancia={v}/>}/>;}},
+
+    {id:'mat_desvio',nome:'Matemática · Desvio padrão',padrao:true,ok:s=>s.geral.n>1,render:s=><Matematica titulo="Desvio padrão" definicao="Raiz quadrada da variância; mede a dispersão na mesma unidade das notas." formula="s = √s²" aplicacao={`s = √${fmt(s.geral.variancia,2)} = ${fmt(s.geral.desvio,2)} p.p.`} resultado={`${fmt(s.geral.desvio,2)} p.p.`} leitura={`O desvio padrão é de ${fmt(s.geral.desvio,1)} pontos percentuais em torno da média de ${pct(s.geral.media)}. Ele resume o espalhamento, não significa que toda nota esteja exatamente nessa distância.`} base={`Base: ${s.geral.n} participantes.`} visual={<DesvioVisual stats={s.geral}/>}/>},
+
+    {id:'mat_quartis',nome:'Matemática · Quartis',padrao:true,ok:s=>s.geral.n>3,render:s=><Matematica titulo="Quartis e intervalo interquartil" definicao="Q1 marca 25% da distribuição; Q3 marca 75%. Entre eles ficam os 50% centrais." formula="IIQ = Q3 − Q1" aplicacao={`${fmt(s.geral.q3,2)} − ${fmt(s.geral.q1,2)} = ${fmt(s.geral.iqr,2)} p.p.`} resultado={`${fmt(s.geral.iqr,2)} p.p.`} leitura={`A metade central das notas está entre ${pct(s.geral.q1)} e ${pct(s.geral.q3)}.`} base={`Quartis por interpolação · n = ${s.geral.n}.`} visual={<QuartisVisual stats={s.geral}/>}/>},
+  {id:'mat_erro_padrao',nome:'Matemática · Erro padrão',padrao:true,ok:s=>s.geral.n>1,render:s=>{const ep=s.geral.desvio/Math.sqrt(s.geral.n),m=s.geral.media;return <Matematica titulo="Erro padrão da média" definicao="Estima a variabilidade da média amostral entre possíveis amostras do mesmo tamanho." formula="EP = s ÷ √n" aplicacao={`${fmt(s.geral.desvio,2)} ÷ √${s.geral.n} = ${fmt(ep,2)} p.p.`} resultado={`${fmt(ep,2)} p.p.`} leitura="O erro padrão tende a diminuir quando o tamanho da amostra aumenta. Ele mede a precisão da média amostral, não a dispersão das notas individuais." base={`Aproximação baseada em n = ${s.geral.n}; amostra voluntária.`} visual={<div className="deck-ep-visual"><div><span>Média observada</span><b>{pct(m)}</b></div><div className="deck-ep-bar"><i style={{left:`${Math.max(0,m-1.96*ep)}%`,width:`${Math.min(100,m+1.96*ep)-Math.max(0,m-1.96*ep)}%`}}/><strong style={{left:`${m}%`}}/></div><div className="deck-ep-labels"><span>{pct(m-1.96*ep)}</span><b>IC aproximado de 95%</b><span>{pct(m+1.96*ep)}</span></div><p>Faixa ilustrativa: média ± 1,96 × erro padrão. Não corrige o viés de uma amostra voluntária.</p></div>}/>;}},
+
+  ];
 
 export function Slide({def,s}) { return <section className="slide deck-slide">{def.render(s)}{!def.semRodape&&<Rodape s={s}/>}</section>; }
