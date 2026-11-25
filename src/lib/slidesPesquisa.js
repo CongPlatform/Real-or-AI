@@ -326,25 +326,60 @@ export function montarSlidesPesquisa({d,comparacoes,media40,amostra40,comparacoe
   })), `${co.total||0} sessões`,
     'Visão sem identificadores pessoais; os registros completos continuam no Admin e nas exportações CSV.');
 
-  // CONTAS E LEITURA
+  // CONTAS E LEITURA — definição, fórmula geral e aplicação numérica com a base real.
+  const notasValidas=p.map(x=>x.pct_ind).filter(Number.isFinite);
+  const somaNotas=notasValidas.reduce((a,b)=>a+b,0);
+  const somaQuadrados=notasValidas.reduce((a,b)=>a+(b-notas.media)**2,0);
+  const notasDaProjecao=evol.slice(1).map(x=>x.nota).filter(Number.isFinite);
+  const somaProjecao=notasDaProjecao.reduce((a,b)=>a+b,0);
+  const fmt=(v,n=2)=>v==null||!Number.isFinite(Number(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:n,maximumFractionDigits:n});
+  const div=(a,b)=>b?`${fmt(a)} ÷ ${fmt(b,0)}`:'Sem denominador válido';
   const formulas=[
-    ['Média individual','Soma das notas (%) de cada participante ÷ quantidade de pessoas',notas.media,`${notas.n||0} pessoas`],
-    ['Sensibilidade IA','IA corretamente marcada IA ÷ total de IA × 100',pct(q.vv,ai),`${q.vv} ÷ ${ai}`],
-    ['Reconhecimento humano','Humano corretamente marcado humano ÷ total de humanos × 100',pct(q.ff,hum),`${q.ff} ÷ ${hum}`],
-    ['Taxa de marcar IA','Todas as escolhas IA ÷ todas as respostas individuais × 100',pct(q.vv+q.fv,total),`${q.vv+q.fv} ÷ ${total}`],
-    ['Acurácia por resposta','Acertos individuais ÷ respostas individuais × 100',pct(q.vv+q.ff,total),`${q.vv+q.ff} ÷ ${total}`],
-    ['Duplas inteiramente corretas','Duplas com as duas peças certas ÷ duplas respondidas × 100',ct.porcentagemExata,`${ct.exatas||0} ÷ ${ct.n||0}`],
-    ['Acerto por peça nas duplas','Peças corretas ÷ todas as peças exibidas em comparação × 100',ct.porcentagemPeca,`${ct.pecas||0} ÷ ${ct.itens||0}`],
-    ['Nota mista 40 decisões','(Acertos individuais + duplas inteiramente certas) ÷ 40 × 100; média das pessoas',media40,`${amostra40} sessões 20+20`],
-    ['Erro padrão','Desvio padrão ÷ raiz quadrada do número de participantes',notas.se,`n = ${notas.n||0}`],
-    ['Intervalo de confiança','Média ± t de Student × erro padrão',notas.ic,`n = ${notas.n||0}`],
-    ['Desvio padrão','Raiz quadrada da variância das notas individuais',notas.desvio,`n = ${notas.n||0}`],
-    ['Mediana','Nota central após ordenar os resultados',notas.mediana,`n = ${notas.n||0}`],
-    ['Trecho liberado (%)','Segundos disponíveis ÷ duração total × 100',au.fraçãoMed,`${au.medidos||0} registros de áudio`],
-    ['Projeção ilustrativa','(8 × 50 + soma das notas observadas) ÷ (8 + n)',evol.at(-1)?.previsao,`n = ${p.length}`],
+    ['Média individual','Soma das notas individuais dividida pelo número de participantes.',
+      'x̄ = Σxᵢ / n',notas.media,`${fmt(somaNotas)} ÷ ${fmt(notasValidas.length,0)} = ${fmt(notas.media)}%`,
+      'A média resume o desempenho individual típico do grupo; cada participante contribui com uma nota.'],
+    ['Sensibilidade IA','Proporção de materiais de IA que foram corretamente identificados como IA.',
+      'Sensibilidade = VP / (VP + FN) × 100',pct(q.vv,ai),`${fmt(q.vv,0)} ÷ (${fmt(q.vv,0)} + ${fmt(q.vf,0)}) × 100 = ${fmt(pct(q.vv,ai))}%`,
+      'Indica a capacidade de reconhecer conteúdos de IA. Não mede o reconhecimento de conteúdos humanos.'],
+    ['Reconhecimento humano','Proporção de conteúdos humanos corretamente identificados como humanos.',
+      'Especificidade = VN / (VN + FP) × 100',pct(q.ff,hum),`${fmt(q.ff,0)} ÷ (${fmt(q.ff,0)} + ${fmt(q.fv,0)}) × 100 = ${fmt(pct(q.ff,hum))}%`,
+      'Indica a capacidade de reconhecer conteúdos humanos sem classificá-los como IA.'],
+    ['Taxa de marcar IA','Percentual de respostas em que o participante escolheu a opção IA.',
+      'Taxa = escolhas IA / respostas totais × 100',pct(q.vv+q.fv,total),`${fmt(q.vv+q.fv,0)} ÷ ${fmt(total,0)} × 100 = ${fmt(pct(q.vv+q.fv,total))}%`,
+      'Descreve o comportamento de escolha, independentemente de a classificação estar correta.'],
+    ['Acurácia por resposta','Percentual de classificações individuais corretas entre todas as classificações válidas.',
+      'Acurácia = (VP + VN) / total × 100',pct(q.vv+q.ff,total),`(${fmt(q.vv,0)} + ${fmt(q.ff,0)}) ÷ ${fmt(total,0)} × 100 = ${fmt(pct(q.vv+q.ff,total))}%`,
+      'Cada resposta individual conta uma vez; não confundir com a taxa de duplas inteiramente corretas.'],
+    ['Duplas inteiramente corretas','Percentual de comparações em que as duas peças do par foram classificadas corretamente.',
+      'Taxa = duplas com 2 acertos / duplas respondidas × 100',ct.porcentagemExata,`${fmt(ct.exatas||0,0)} ÷ ${fmt(ct.n||0,0)} × 100 = ${fmt(ct.porcentagemExata)}%`,
+      'Uma dupla só entra no numerador quando as duas classificações estão corretas.'],
+    ['Acerto por peça nas duplas','Percentual de peças classificadas corretamente, considerando cada material separadamente.',
+      'Taxa = peças corretas / peças avaliadas × 100',ct.porcentagemPeca,`${fmt(ct.pecas||0,0)} ÷ ${fmt(ct.itens||0,0)} × 100 = ${fmt(ct.porcentagemPeca)}%`,
+      'Como cada dupla contém duas peças, essa taxa pode ser maior que a taxa de duplas inteiramente corretas.'],
+    ['Nota mista 40 decisões','Média da pontuação por participante, combinando 20 classificações individuais e 20 duplas.',
+      'Nota = (acertos individuais + duplas certas) / 40 × 100',media40,`Média registrada = ${fmt(media40)}% · ${fmt(amostra40,0)} participantes com as duas etapas completas`,
+      'O denominador por participante é 40 decisões. Uma dupla vale um acerto somente quando as duas peças estão corretas.'],
+    ['Erro padrão','Mede a incerteza da média amostral em relação à variação entre participantes.',
+      'EP = s / √n',notas.se,`${fmt(notas.desvio)} ÷ √${fmt(notas.n||0,0)} = ${fmt(notas.se)}`,
+      'É calculado com o desvio padrão amostral e o número de notas individuais válidas.'],
+    ['Intervalo de confiança','Faixa aproximada de valores compatíveis com a média populacional, sob pressupostos estatísticos.',
+      'IC 95% ≈ média ± 1,96 × erro padrão',notas.ic,`${fmt(notas.media)} ± 1,96 × ${fmt(notas.se)} = [${fmt(notas.ic?.[0])}%; ${fmt(notas.ic?.[1])}%]`,
+      'O cálculo implementado usa aproximação normal. A participação voluntária não garante representatividade da população.'],
+    ['Desvio padrão','Raiz quadrada da variância; resume o quanto as notas costumam se afastar da média.',
+      's = √[Σ(xᵢ − x̄)² / (n − 1)]',notas.desvio,`√(${fmt(somaQuadrados)} ÷ (${fmt(notasValidas.length,0)} − 1)) = ${fmt(notas.desvio)}`,
+      'O divisor n − 1 corresponde ao desvio padrão amostral utilizado pelo sistema.'],
+    ['Mediana','Valor central das notas após ordenar os participantes do menor para o maior resultado.',
+      'Md = posição central da série ordenada',notas.mediana,`${fmt(notas.n,0)} notas ordenadas · mediana calculada = ${fmt(notas.mediana)}%`,
+      'Metade das observações fica abaixo ou igual à mediana e metade acima ou igual. Para quantidade par, considera-se a média dos dois valores centrais.'],
+    ['Trecho liberado (%)','Proporção da duração total do áudio que foi disponibilizada ao participante.',
+      'Percentual = segundos liberados / duração total × 100',au.fraçãoMed,`Fração mediana registrada = ${fmt(au.fraçãoMed)}% · ${fmt(au.medidos,0)} registros com telemetria`,
+      'É uma medida de disponibilidade do áudio, não necessariamente do tempo efetivamente ouvido.'],
+    ['Projeção ilustrativa','Média ponderada que combina uma hipótese inicial fictícia com as notas observadas.',
+      'Projeção = (8 × 50 + Σ notas) / (8 + n)',evol.at(-1)?.previsao,`(8 × 50 + ${fmt(somaProjecao)}) ÷ (8 + ${fmt(notasDaProjecao.length,0)}) = ${fmt(evol.at(-1)?.previsao)}%`,
+      'Os oito pseudoparticipantes e a nota inicial de 50% são parâmetros ilustrativos, não observações reais.'],
   ];
-  formulas.forEach(([nome,formula,valor,base])=>add('11 · Como calculamos',nome,{vis:'formula',valor,formula,base,
-    descricao:'A fórmula explicita o que entra no numerador e no denominador. Resultados da pesquisa não são palpites ou projeções.'}));
+  formulas.forEach(([nome,definicao,formula,valor,aplicacao,interpretacao])=>add('11 · Como calculamos',nome,{vis:'formula',valor,definicao,formula,aplicacao,interpretacao,base:`Base real: ${p.length} participantes válidos; cada cálculo informa sua própria quantidade de observações.`,
+    descricao:'Veja o conceito, a fórmula geral e a substituição dos valores observados na pesquisa.'}));
   add('11 · Como calculamos','Como interpretar a pesquisa?',{vis:'conclusao',base:`${p.length} pessoas válidas`,
     descricao:'Priorize médias por participante, indique sempre a base de cada gráfico e separe classificação individual de comparação. Participação voluntária não implica amostra representativa.'});
   return s;

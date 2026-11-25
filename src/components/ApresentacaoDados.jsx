@@ -181,7 +181,7 @@ function Visual({slide}){
     case 'dispersao':return <Nuvem dados={slide.dados}/>;
     case 'matriz':return <Matriz q={slide.dados}/>;
     case 'tabela':return <Tabela dados={slide.dados}/>;
-    case 'formula':return <div className="v16-formula"><span>FÓRMULA</span><p>{slide.formula}</p><strong>{Array.isArray(slide.valor)?`${fpct(slide.valor[0])} a ${fpct(slide.valor[1])}`:fpct(slide.valor)}</strong><small>{slide.base}</small></div>;
+    case 'formula':return <div className="v16-formula"><span>CONCEITO E CÁLCULO</span><div className="v16-formula-def"><b>O que é</b><p>{slide.definicao}</p></div><div className="v16-formula-bloco"><b>Fórmula geral</b><p>{slide.formula}</p></div><div className="v16-formula-bloco v16-formula-aplicacao"><b>Aplicação com os dados reais</b><p>{slide.aplicacao}</p></div><div className="v16-formula-resultado"><span>RESULTADO</span><strong>{Array.isArray(slide.valor)?`${fpct(slide.valor[0])} a ${fpct(slide.valor[1])}`:typeof slide.valor==='number'?`${fnum(slide.valor,2)}${slide.titulo.includes('padrão')||slide.titulo.includes('Erro')?'':'%'}`:slide.valor==null?'—':String(slide.valor)}</strong></div><div className="v16-formula-def"><b>Como interpretar</b><p>{slide.interpretacao}</p></div><small>{slide.base}</small></div>;
     case 'conclusao':return <div className="v16-conclusao"><b>01 · Descrever</b><span>O que cada medida realmente representa</span><b>02 · Comparar</b><span>Parte 1 versus Parte 2, sem misturar bases</span><b>03 · Contextualizar</b><span>Limites de amostra, exposição e participação</span></div>;
     default:return <SemDados/>;
   }
