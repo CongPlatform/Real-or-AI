@@ -87,10 +87,35 @@ export default function Apresentacao({ s }) {
 
   useEffect(() => {
     if (!imp) return undefined;
+
+    let cancelado = false;
+    let timer;
     const fim = () => setImp(false);
     addEventListener('afterprint', fim);
-    const t = setTimeout(() => window.print(), 500);
-    return () => { clearTimeout(t); removeEventListener('afterprint', fim); };
+
+    // Aguarda fontes, montagem dos slides e duas medições do navegador.
+    // Isso dá tempo para o ResizeObserver do Recharts calcular os gráficos.
+    const prepararImpressao = async () => {
+      try {
+        if (document.fonts?.ready) await document.fonts.ready;
+      } catch { /* continua mesmo se alguma fonte falhar */ }
+
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+
+      timer = setTimeout(() => {
+        if (!cancelado) window.print();
+      }, 400);
+    };
+
+    prepararImpressao();
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+      removeEventListener('afterprint', fim);
+    };
   }, [imp]);
 
   const alterna = (id) => setEst((e) => ({ ...e, marcados: e.marcados.includes(id) ? e.marcados.filter((x) => x !== id) : [...e.marcados, id] }));

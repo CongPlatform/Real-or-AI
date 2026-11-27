@@ -94,13 +94,41 @@
 .apres-barra{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:rgba(255,255,255,.94);border:2.5px solid var(--ink);border-radius:12px;padding:6px 12px;font-weight:700;opacity:.35;transition:opacity .2s}
 .apres-barra:hover{opacity:1}
 .apres-barra button{border:2px solid var(--ink);background:#fff;border-radius:8px;padding:6px 12px;font-weight:700}
-.so-impressao{display:none}
+/* A área de impressão permanece montada fora da tela.
+   Não usar display:none: o Recharts precisa medir os gráficos antes do print. */
+.so-impressao{
+  display:block;
+  position:fixed;
+  top:0;
+  left:-100000px;
+  width:1280px;
+  visibility:hidden;
+  pointer-events:none;
+  z-index:-1;
+}
+
 @media print{
   @page{size:1280px 720px;margin:0}
-  html,body{background:#fff}
+  html,body{background:#fff;margin:0;padding:0}
   #root{display:none!important}
-  .so-impressao{display:block}
-  .so-impressao .slide{break-after:page;page-break-after:always}
+  .so-impressao{
+    display:block!important;
+    position:static!important;
+    top:auto!important;
+    left:auto!important;
+    width:1280px!important;
+    visibility:visible!important;
+    pointer-events:auto;
+    z-index:auto;
+  }
+  .so-impressao .slide{
+    break-after:page;
+    page-break-after:always;
+  }
+  .so-impressao .slide:last-child{
+    break-after:auto;
+    page-break-after:auto;
+  }
 }
 
 /* Prévia ampliada dos slides */
